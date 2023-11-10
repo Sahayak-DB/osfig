@@ -1,0 +1,10 @@
+.idea
+/target
+/Cargo.lock
+/osfig.test
+/Rule Paths.txt
+/test
+/test.txt
+/logs/
+/config/
+/osfig.exe
