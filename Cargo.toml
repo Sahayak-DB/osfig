@@ -1,0 +1,33 @@
+[package]
+name = "osfig"
+version = "0.0.1"
+description = "Open Source Forensic Integrity Guard - A simple tool for use in establishing better forensic security controls."
+homepage = "https://github.com/Sahayak-DB/osfig"
+repository = "https://github.com/Sahayak-DB/osfig"
+license = "MIT"
+edition = "2021"
+
+[profile.release]
+lto = "fat"
+debug = true
+codegen-units = 1
+
+[profile.dev]
+debug = true
+lto = "off"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+md5 = "0.7.0"
+sha256 = "1.4.0"
+blake2s_simd = "1.0.2"
+log4rs = { version = "1.2.0", features = ["gzip"] }
+log = "0.4.20"
+hex = { version = "0.4.3", features = [] }
+chrono = { version = "0.4.31", features = [] }
+filetime = "0.2.22"
+winapi = { version = "0.3.9", features = ["fileapi", "winnt", "wincred", "ntsecapi", "winuser"] }
+windows-permissions = "0.2.4"
+windows-acl = "0.3.0"
+winreg = "0.51.0"
+is_elevated = "0.1.2"
