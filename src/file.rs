@@ -4,7 +4,7 @@ use chrono::Utc;
 use filetime::FileTime;
 use glob::{glob, GlobResult};
 use is_elevated::is_elevated;
-use log::{error, info};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs;
@@ -22,7 +22,7 @@ use crate::win_acl::{get_dacls, get_sacls, WinAcl};
 pub struct FileScanResult {
     pub(crate) scantime: String,
     pub(crate) path: Box<PathBuf>,
-    name: String,
+    pub(crate) name: String,
     pub(crate) is_dir: bool,
     pub(crate) is_file: bool,
     pub(crate) is_sym: bool,
@@ -45,12 +45,12 @@ fn store_json(results: &Vec<FileScanResult>) {
     // Testing storage to json file
     // Todo refactor later for more organized storage of results -- Should this even live here? Plan!
     let results_path = format!(
-        "./scans/results-{}.json",
+        "./scans/latest/results-{}.json",
         DateTime::<Utc>::from(SystemTime::now()).timestamp()
     );
     let scans_dir = Path::new(&results_path).parent().unwrap();
     if !scans_dir.exists() {
-        match std::fs::create_dir_all(scans_dir) {
+        match fs::create_dir_all(scans_dir) {
             Ok(_) => {
                 info!("Created ./scans/ directory")
             }
@@ -74,18 +74,44 @@ fn store_json(results: &Vec<FileScanResult>) {
 }
 
 pub fn scan_files(pattern: &str) -> Vec<FileScanResult> {
+    info!("Using file pattern: {}", pattern);
     let mut results: Vec<FileScanResult> = Vec::new();
-    if glob(pattern).iter().len() >= 1 {
-        for entry in glob(pattern).expect("Invalid glob pattern") {
-            // Todo add a glob based negation pattern and check if path is not in the anti-pattern matches
-            // Todo check default paths in Windows which are typically inaccessible and put them in a default group of ignored dirs: C:\Users\Default User\*
-            results.push(scan_file(&entry))
+    // Validate there is no PatternError being returned. Fail fast if so by creating a new glob
+    // match that will be empty.
+    let glob_match = match glob(pattern) {
+        Ok(paths) => {
+            info!("Valid glob pattern - Checking file results");
+            paths
         }
-    } else {
-        return Vec::new();
-    }
-    store_json(&results);
+        Err(e) => {
+            error!("Invalid Glob Pattern: Error: {}", e);
+            glob("").unwrap()
+        }
+    };
 
+    // Validate if a GlobError occurs on any found path. These are usually permissions/access errors
+    // in the OS since we retrieved them from our Paths result returned by glob::glob.
+    for entry in glob_match.into_iter() {
+        match entry {
+            Ok(_) => {}
+            Err(e) => {
+                warn!("Glob Error: {}", e);
+                continue;
+            }
+        }
+        // Todo add a glob based negation pattern and check if path is not in the anti-pattern matches
+        results.push(scan_file(&entry))
+    }
+    // I'm torn on this and may change it later. If the results are 0 it just saved "[]" into the
+    // json. Currently we're skipping the save operation and putting a message in the log. For
+    // integrity purposes, it may be valuable to store the empty json result instead. Will need to
+    // reconsider this later.
+    if results.len() == 0 {
+        warn!("Found no file results. Validate scan settings, access/permissions, and errors in the log");
+    }
+    if results.len() > 0 {
+        store_json(&results);
+    }
     results
 }
 
@@ -93,12 +119,17 @@ pub fn scan_file(glob_match: &GlobResult) -> FileScanResult {
     let path = match glob_match.as_ref() {
         Ok(path) => path,
         Err(e) => {
-            error!("Glob Error: {}", e);
-            Path::new("../test files/test")
+            // Todo validate no further errors can come up. Check TOCTOU cases.
+            error!("Contact Developer! - Error: {}", e);
+            Path::new("")
         }
     };
 
     let path_result = Path::new(path);
+    // This handles the TOCTOU case where a path exists during glob validation, but not once we
+    // are scanning. The glob matching ensures we only have real paths to scan. If it's gone by
+    // this time, it's likely to be an ephemeral file and not one we would have wanted results
+    // about anyway.
     if !path_result.exists() {
         let filescanresult: FileScanResult = FileScanResult {
             scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
@@ -131,6 +162,7 @@ pub fn scan_file(glob_match: &GlobResult) -> FileScanResult {
         return filescanresult;
     }
 
+    // At this point, we have a living result for a path. Collect the associated data.
     let hashes = hashing::get_all_hashes(path);
     let md = fs::metadata(path).unwrap();
 
@@ -156,6 +188,8 @@ pub fn scan_file(glob_match: &GlobResult) -> FileScanResult {
         // Todo Consider using crate simdutf8 in the future for performance enhancements
         let mut myfile = File::open(path).unwrap();
         let mut file_contents: Vec<u8> = Vec::new();
+        // Collect file contents but intentionally fail on non-UTF8 content. There's no value in
+        // storing content from other-encoded files.
         myfile
             .read_to_end(&mut file_contents)
             .expect("Not valid UTF8");
@@ -167,7 +201,25 @@ pub fn scan_file(glob_match: &GlobResult) -> FileScanResult {
         .unwrap();
     }
 
-    let mut filescanresult: FileScanResult = FileScanResult {
+    let dacl_result = get_dacls(path);
+
+    let mut sacl_result = WinAcl {
+        object_type: "".to_string(),
+        acl_entries: vec![],
+    };
+    if is_elevated() {
+        sacl_result = get_sacls(path);
+    }
+    let canonical_path = format!("{:?}", &path.canonicalize().unwrap().to_str().unwrap());
+    debug!("File scan results complete: {}", canonical_path);
+
+    // We have our scan data--save into the FileScanResult. Note that I have intentionally placed
+    // the scantime value as now() instead of when we first checked the file. It takes only a few
+    // microseconds to collect data, but could take seconds to collect content on a larger file.
+    // For compliance/audit purposes, it's valuable to ascertain when the result was stored, not
+    // when the scan started. Since results aren't available until the scan is "done", we are
+    // using this moment to declare the scan as "done" and store the results with this timestamp.
+    let filescanresult: FileScanResult = FileScanResult {
         scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
         path: Box::new(path.canonicalize().unwrap().to_owned()),
         name: "".to_string(),
@@ -185,16 +237,9 @@ pub fn scan_file(glob_match: &GlobResult) -> FileScanResult {
         size: md.file_size(),
         attrs: md.file_attributes(),
         contents: utf8_contents,
-        dacl: get_dacls(path),
-        sacl: WinAcl {
-            object_type: "".to_string(),
-            acl_entries: vec![],
-        },
+        dacl: dacl_result,
+        sacl: sacl_result,
     };
-
-    if is_elevated() {
-        filescanresult.sacl = get_sacls(path);
-    }
 
     filescanresult
 }
