@@ -1,26 +1,30 @@
-use std::fmt;
+use blake2s_simd;
+use blake2s_simd::Params;
+use log::info;
 use sha256::try_digest;
+use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use log::info;
-use blake2s_simd;
-use blake2s_simd::Params;
 
 pub struct HashValues {
     // Is there a real need to add 128 or 512 or others like Blake2?
     pub md5: String,
     pub sha256: String,
-    pub blake2s: String
+    pub blake2s: String,
 }
 impl fmt::Display for HashValues {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MD5:{}, SHA256:{}, BLAKE2:{}", self.md5, self.sha256, self.blake2s)
+        write!(
+            f,
+            "MD5:{}, SHA256:{}, BLAKE2:{}",
+            self.md5, self.sha256, self.blake2s
+        )
     }
 }
 
 pub fn get_all_hashes(path: &Path) -> HashValues {
-    let hashes: HashValues = HashValues{
+    let hashes: HashValues = HashValues {
         md5: get_md5(path),
         sha256: get_sha256(path),
         blake2s: get_blake2s(path),
@@ -32,7 +36,7 @@ pub fn get_md5(path: &Path) -> String {
     // that users may need to compare with.
     if File::open(path).is_err() {
         info!("Cannot open file for hashing: {:?}", path.to_str());
-        return String::from("Cannot open file.");
+        return String::from("Cannot open file");
     }
 
     let file = File::open(path).expect("Cannot open file");
@@ -63,7 +67,7 @@ pub fn get_md5(path: &Path) -> String {
 pub fn get_sha256(path: &Path) -> String {
     if File::open(path).is_err() {
         info!("Cannot open file for hashing: {:?}", path.to_str());
-        return String::from("Cannot open file.");
+        return String::from("Cannot open file");
     }
 
     let sha256_hash = try_digest(Path::new(path)).unwrap().to_ascii_uppercase();
@@ -73,7 +77,7 @@ pub fn get_sha256(path: &Path) -> String {
 pub fn get_blake2s(path: &Path) -> String {
     if File::open(path).is_err() {
         info!("Cannot open file for hashing: {:?}", path.to_str());
-        return String::from("Cannot open file.");
+        return String::from("Cannot open file");
     }
 
     let file = File::open(path).expect("Cannot open file");
@@ -102,5 +106,4 @@ pub fn get_blake2s(path: &Path) -> String {
     let blake2_hash = result.to_ascii_uppercase();
 
     blake2_hash
-
 }

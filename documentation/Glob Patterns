@@ -1,0 +1,88 @@
+References: https://docs.rs/glob/latest/glob/
+
+# Glob Syntax Patterns
+
+Glob syntax allows for pattern matching and wildcard support, making it easier to configure OSFIG with fewer rules.
+
+Many use cases come up where you will know the structure of the file system, but the exact path names will change. Instead of following a strict set of exact file paths, OSFIG will use this pattern matching to allow you to consistently identify and scan the files needed, even as directory structure changes over time. This also reduces the burden in maintaining a set of monitoring rules. *(Examples below)*
+
+## Glob Patterns
+
+### Single match wildcar**d ( ? )
+  * Pattern: /path/test?/bin
+  * Matches: /path/test1/bin, /path/test3/bin
+  * Non Match: /path/test10/bin
+    * Note: This is a non match because the ? operator only matches a single character
+
+### Multiple match wildcard** ( * )
+  * Pattern: /path/test*/bin
+  * Matches: /path/test/bin, /path/test123/bin
+  * Non Match: /path/test/log
+    * Note: * will match any number of characters, including 0
+
+### Recursive directory wildcards ( ** )
+  * Pattern: /path/**/log
+  * Matches: /path/program/log, /path/program2/data/log
+  * Non Match: /path/log, /path/.data/log
+  * Note: ** must always be between directory separators. It cannot be used for partial text matching. A single * should be used in that case
+    * Valid: /path/\**/log, /path/program/\**/log
+    * Invalid: /path/program**/log
+
+### Sequence single match range wildcards ( \[a-z\] )
+  * Pattern: /path/python3[0-9]
+  * Matches: /path/python36, /path/python38
+  * Non Match: /path/python310
+
+### Sequence single match wildcards ( \[\] )
+* Instead of specifying a range, you may also list out multiple character matches 
+  * Pattern: /path/python3[189]*/
+  * Matches: /path/python38, /path/python310
+  * Non Match: /path/python36
+      * Note: This is a non match because the range required a 1, 8, or 9. Even though the * could match the 6, the range wasn't satisfied first.
+  * Note: An open or closing bracket cannot be used alone. If you need to match one of the control characters, instructions are below.
+
+### Sequence non-match single or range wildcards ( \[!a-z\]\[!0-9\] )
+* Including an ! at the beginning inside the brackets, it transforms it to non match characters/ranges. 
+  * Pattern: /path/python3\[!2-9]*
+  * Matches: /path/python311, /path/python310
+  * Non Match: /path/python36, /path/python38
+  * Note: An open or closing bracket cannot be used alone. If you need to match one of the control characters, instructions are below.
+
+### Matching control characters ( ? * [ ] - )
+  * Placing a control character inside of two brackets will allow for a single match of that control character.
+    * Pattern: /path\[?\]3/log
+    * Matches: /path?3/log
+    * Non Match: /paths3/log
+    * Pattern: /path/program[[]44[]]/log
+    * Matches: /path/program\[44\]/log
+    * Non Match: /path/program44/log
+
+## Common examples
+
+### Windows
+
+#### Matching directories where program version numbers are included
+**Example:** C:\Program Files\Python\python38\
+Matching this directory is simple in traditional FIM tools. What becomes complex is knowing that you are monitoring all installed versions of python, as each version update will create a new path such as *C:\Program Files\Python\python310*.
+* Traditional:
+  * C:\Program Files\Python\python38\
+  * C:\Program Files\Python\python39\
+  * C:\Program Files\Python\python310\
+* Glob:
+  * C:\Program Files\Python\python*\
+    * Matches any directory starting with 'python'
+  * C:\Program Files\Python\python31[0-9\
+    * Matches any directory starting with 'python31' that ends in a third numerical digit
+
+**Example:** C:\Users\username1\.gitconfig
+Matching all username directories on a system is easy with wildcards. This example also shows how to match a hidden directory.
+* Traditional:
+  * C:\Users\username1\\.gitconfig
+  * C:\Users\username2\\.gitconfig
+  * C:\Users\username3\\.gitconfig
+* Glob:
+  * C:\Users\*\\[.\]gitconfig
+
+### Linux
+
+* Not yet supported by OSFIG
