@@ -1,7 +1,7 @@
+use log4rs;
 use std::fs;
 use std::fs::File;
 use std::path::Path;
-use log4rs;
 
 pub fn setup_logging() {
     let config_path = Path::new("./config/osfig_log_settings.yml");
@@ -37,10 +37,8 @@ pub fn setup_logging() {
         println!("Recreated default logging configuration. Set to ISO 8601 and UTC.");
     }
 
-
     // Todo Change later when we establish an OSFIG config file and allow user specified paths
-    let init_result = log4rs::init_file("./config/osfig_log_settings.yml",
-                                        Default::default());
+    let init_result = log4rs::init_file("./config/osfig_log_settings.yml", Default::default());
 
     // If we can't access this path, someone has dome something very wrong. Shame on them.
     if init_result.is_err() {

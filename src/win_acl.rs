@@ -1,27 +1,30 @@
-use std::path::Path;
-use windows_acl::acl::{AceType, ACL, ACLEntry};
-use winapi::um::winnt;
 use crate::win_helpers;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use winapi::um::winnt;
+use windows_acl::acl::{ACLEntry, AceType, ACL};
 
-#[derive(Debug)]
+#[allow(unused)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WinaclEntry {
     pub(crate) acl_type: String,
     pub(crate) acl_flags: String,
     pub(crate) acl_sid: String,
     pub(crate) acl_user: String,
-    pub(crate) acl_mask: String
+    pub(crate) acl_mask: String,
 }
-#[derive(Debug)]
+#[allow(unused)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WinAcl {
     pub(crate) object_type: String,
-    pub(crate) acl_entries: Vec<WinaclEntry>
+    pub(crate) acl_entries: Vec<WinaclEntry>,
 }
 
 pub fn get_dacls(path: &Path) -> WinAcl {
     let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
-        acl_entries: vec![]
+        acl_entries: vec![],
     };
     acl_result.object_type = dacl.object_type().to_string();
     for item in &dacl.all().unwrap() {
@@ -35,7 +38,7 @@ pub fn get_sacls(path: &Path) -> WinAcl {
     let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
-        acl_entries: vec![]
+        acl_entries: vec![],
     };
     acl_result.object_type = dacl.object_type().to_string();
     for item in &dacl.all().unwrap() {
@@ -59,12 +62,9 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
 
     // Check ACL SID
     let sid = match acl_entry.sid {
-        Some(ref sid) => {
-            windows_acl::helper::sid_to_string((*sid).as_ptr() as winnt::PSID).unwrap_or_else(
-                | _ | "Bad SID Format".to_string()
-            )
-        }
-        None => "None".to_string()
+        Some(ref sid) => windows_acl::helper::sid_to_string((*sid).as_ptr() as winnt::PSID)
+            .unwrap_or_else(|_| "Bad SID Format".to_string()),
+        None => "None".to_string(),
     };
 
     // Check ACL Flags
@@ -76,16 +76,20 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
         (winnt::INHERITED_ACE, "InheritedAce"),
         (winnt::NO_PROPAGATE_INHERIT_ACE, "NoPropagateInheritAce"),
         (winnt::OBJECT_INHERIT_ACE, "ObjectInheritAce"),
-        (winnt::SUCCESSFUL_ACCESS_ACE_FLAG, "SuccessfulAccessAce")
+        (winnt::SUCCESSFUL_ACCESS_ACE_FLAG, "SuccessfulAccessAce"),
     ];
 
     for &(flag, desc) in &defined_flags {
         if (acl_entry.flags & flag) > 0 {
-            if flags.len() > 0 { flags += "|"; }
+            if flags.len() > 0 {
+                flags += "|";
+            }
             flags += desc;
         }
     }
-    if flags.len() == 0 { flags += "None"; }
+    if flags.len() == 0 {
+        flags += "None";
+    }
     acl_entry_result.acl_flags = flags;
 
     let mut masks: String = String::new();
@@ -93,10 +97,13 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
         let defined_masks = [
             (winnt::SYSTEM_MANDATORY_LABEL_NO_EXECUTE_UP, "NoExecUp"),
             (winnt::SYSTEM_MANDATORY_LABEL_NO_READ_UP, "NoReadUp"),
-            (winnt::SYSTEM_MANDATORY_LABEL_NO_WRITE_UP, "NoWriteUp")];
+            (winnt::SYSTEM_MANDATORY_LABEL_NO_WRITE_UP, "NoWriteUp"),
+        ];
         for &(mask, desc) in &defined_masks {
             if (acl_entry.mask & mask) > 0 {
-                if masks.len() > 0 { masks += "|"; }
+                if masks.len() > 0 {
+                    masks += "|";
+                }
                 masks += desc;
             }
         }
@@ -104,22 +111,35 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
         match acl.object_type() {
             windows_acl::acl::ObjectType::FileObject => {
                 if (acl_entry.mask & winnt::FILE_ALL_ACCESS) == winnt::FILE_ALL_ACCESS {
-                    if masks.len() > 0 { masks += "|"; }
+                    if masks.len() > 0 {
+                        masks += "|";
+                    }
                     masks += "FileAllAccess";
                 } else {
-
-                    if (acl_entry.mask & winnt::FILE_GENERIC_READ) == (winnt::FILE_GENERIC_READ & !winnt::SYNCHRONIZE) {
-                        if masks.len() > 0 { masks += "|"; }
+                    if (acl_entry.mask & winnt::FILE_GENERIC_READ)
+                        == (winnt::FILE_GENERIC_READ & !winnt::SYNCHRONIZE)
+                    {
+                        if masks.len() > 0 {
+                            masks += "|";
+                        }
                         masks += "FileGenericRead";
                     }
 
-                    if (acl_entry.mask & winnt::FILE_GENERIC_WRITE) == (winnt::FILE_GENERIC_WRITE & !winnt::SYNCHRONIZE) {
-                        if masks.len() > 0 { masks += "|"; }
+                    if (acl_entry.mask & winnt::FILE_GENERIC_WRITE)
+                        == (winnt::FILE_GENERIC_WRITE & !winnt::SYNCHRONIZE)
+                    {
+                        if masks.len() > 0 {
+                            masks += "|";
+                        }
                         masks += "FileGenericWrite";
                     }
 
-                    if (acl_entry.mask & winnt::FILE_GENERIC_EXECUTE) == (winnt::FILE_GENERIC_EXECUTE & !winnt::SYNCHRONIZE) {
-                        if masks.len() > 0 { masks += "|"; }
+                    if (acl_entry.mask & winnt::FILE_GENERIC_EXECUTE)
+                        == (winnt::FILE_GENERIC_EXECUTE & !winnt::SYNCHRONIZE)
+                    {
+                        if masks.len() > 0 {
+                            masks += "|";
+                        }
                         masks += "FileGenericExec";
                     }
 
@@ -133,11 +153,13 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
                             (winnt::FILE_READ_EA, "FileReadEa"),
                             (winnt::FILE_APPEND_DATA, "FileAppendDataOrAddSubDir"),
                             (winnt::FILE_WRITE_DATA, "FileWriteDataOrAddFile"),
-                            (winnt::FILE_READ_DATA, "FileReadDataOrListDir")
+                            (winnt::FILE_READ_DATA, "FileReadDataOrListDir"),
                         ];
                         for &(mask, desc) in &defined_specific_rights {
                             if (acl_entry.mask & mask) > 0 {
-                                if masks.len() > 0 { masks += "|"; }
+                                if masks.len() > 0 {
+                                    masks += "|";
+                                }
                                 masks += desc;
                             }
                         }
@@ -155,13 +177,16 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
                     (winnt::WRITE_DAC, "WriteDac"),
                     (winnt::WRITE_OWNER, "WriteOwner"),
                     (winnt::MAXIMUM_ALLOWED, "MaxAllowed"),
-                    (winnt::SYNCHRONIZE, "Synchronize")];
+                    (winnt::SYNCHRONIZE, "Synchronize"),
+                ];
                 if (acl_entry.mask & winnt::STANDARD_RIGHTS_ALL) == winnt::STANDARD_RIGHTS_ALL {
                     masks += "StandardRightsAll";
                 } else {
                     for &(mask, desc) in &defined_std_rights {
                         if (acl_entry.mask & mask) > 0 {
-                            if masks.len() > 0 { masks += "|"; }
+                            if masks.len() > 0 {
+                                masks += "|";
+                            }
                             masks += desc;
                         }
                     }
@@ -169,7 +194,9 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
             }
         }
     }
-    if masks.len() == 0 { masks += "None"; }
+    if masks.len() == 0 {
+        masks += "None";
+    }
     acl_entry_result.acl_mask = masks;
 
     // Construct ACL System\Username
