@@ -1,0 +1,94 @@
+# Usage Instructions
+
+## Settings file formatting
+The OSFIG settings file uses standard JSON formatting. There are multiple guides on the internet showcasing how to correctly format within JSON.
+Common mistakes include:
+* Surrounding booleans (true/false) with double quotation marks, e.g. "true" instead of true
+* Ending a list [ ] with the final item having a trailing comma , at the end of the line.
+* Removing the trailing , from the end of a field value. For example, the boolean fields in this file should all be true/false, but will need to end with a comma to separate to the next field.
+* Adding or removing curly brackets { } where they do not belong
+* Failing to escape a backslash by entering \ instead of \\ in file paths.
+  * **Note:** With glob syntax supported, you can use linux directory separators / instead of the Windows backslash directory separator.
+* Saving the file in an encoding other than UTF-8
+* Saving the file with a Byte Order Mark (BOM)
+
+### scan_files
+This setting enables or disables scanning of files. All file scanning settings depend upon this being set to true.
+* Allowed values: true, false,
+* Formatting: Must be a lowercase true/false not surrounded by quotes.
+* Example: true,
+
+### file_patterns
+This is a list of valid glob patterns to match and collect scan data about.
+* Allowed values: Comma separated list of strings containing valid globs.
+* Formatting: Comma separated list of globs, contained within double quotation marks, all inside the double brackets for the list [ ], and no trailing comma after the final list item inside the brackets, but a comma after the closing bracket to denote the end of the field. 
+* Example: "file_patterns": \["/glob/path*/here.txt", "C:\\\\autoexec.bat"\],
+
+### file_ignore_patterns
+This setting is a list of paths in identical format to file_patterns. These glob patterns will be expanded to match files that you do not want to collect data about.
+* (See file_patterns for examples of formatting.)
+
+### file_hashes
+* md5
+  * This setting enables or disables md5 hashing.
+    * Allowed values: true, false,
+    * Formatting: Must be a lowercase true/false not surrounded by quotes.
+    * Example: true,
+* sha256
+  * This setting enables or disables sha256 hashing.
+    * Allowed values: true, false,
+    * Formatting: Must be a lowercase true/false not surrounded by quotes.
+    * Example: true,
+* blake2s
+  * This setting enables or disables blake2s hashing.
+    * Allowed values: true, false,
+    * Formatting: Must be a lowercase true/false not surrounded by quotes.
+    * Example: true,
+
+### file_dacl
+This setting enables or disables collection of Windows Discretionary ACLs.
+* Allowed values: true, false,
+* Formatting: Must be a lowercase true/false not surrounded by quotes.
+* Example: true
+
+### file_sacl
+This setting enables or disables collection of Windows System ACLs.
+* Allowed values: true, false,
+* Formatting: Must be a lowercase true/false not surrounded by quotes.
+* Example: true,
+
+### file_content
+This setting enables or disables collection of file contents. OSFIG only supports reading of UTF-8 encoded files. All other encodings and non-flat files (binaries and dlls) will be skipped.
+* Allowed values: true, false,
+* Formatting: Must be a lowercase true/false not surrounded by quotes.
+* Example: true,
+
+### file_scan_delay
+This value represents a number of milliseconds (1000ms equals 1 second) to pause between scanning files. By slowing down scanning, it reduces the CPU and Disk utilization of OSFIG. Suggested values are below based upon the desired system impact--smaller numbers use more resources but scan faster and bigger numbers use fewer resources, but scanning takes longer. This has no change to memory utilization.
+
+There will be a separate guide published on system performance impact analysis.
+
+HIGH (fast): 0  
+MED-HIGH (recommended): 75  
+LOW-MED (slow and conservative): 250  
+LOW (negligible impact): 1000  
+
+* Allowed values: Positive integers from 0 to 10000, though you are strongly encouraged to test in your environment with numbers at or below 1000. Scanning is tediously slow with larger values. For example, a setting of 10000 pauses for 10s between file scans.
+* Excluding the time spent actually scanning, if you scan 120 files, that would take 20 minutes @ 10000, 2 min @ 1000, 0.5 min @ 250, and no time paused with a setting of 0. 
+* Formatting: An integer value not contained within double quotes
+* Example: 0,
+
+### scan_registry
+This setting enables or disables registry scanning.
+* Allowed values: true, false,
+* Formatting: Must be a lowercase true/false not surrounded by quotes.
+* Example: true,
+
+### registry_patterns
+This setting controls which registry paths will be scanned.
+* Allowed values: Comma separated list of strings containing valid registry paths.
+* Formatting: Comma separated list of paths, contained within double quotation marks, all inside the double brackets for the list [ ], and no trailing comma after the final list item inside the brackets, but a comma after the closing bracket to denote the end of the field.
+* Example: \["HKEY_LOCAL_MACHINE\\\\Software\\\\Python\\\\PythonCore\\\\DisplayName"\],
+
+
+This file is formatted with markdown syntax, so if viewed in a non-markdown reader, there will be incorrect and unnecessary formatting marks that may confuse your understanding. If this is the case, read the file from the GitHub repo online as it will natively display the markdown output display on the website.

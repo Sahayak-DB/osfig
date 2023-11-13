@@ -26,11 +26,13 @@ log = "0.4.20"
 hex = { version = "0.4.3", features = [] }
 chrono = { version = "0.4.31", features = [] }
 filetime = "0.2.22"
+serde_json = { version = "1.0.108", features = [] }
+glob = { version = "0.3.1", features = [] }
+serde = { version = "1.0.190", features = ["derive"] }
+
+[target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["fileapi", "winnt", "wincred", "ntsecapi", "winuser"] }
 windows-permissions = "0.2.4"
 windows-acl = "0.3.0"
 winreg = "0.51.0"
 is_elevated = "0.1.2"
-serde_json = { version = "1.0.108", features = [] }
-glob = { version = "0.3.1", features = [] }
-serde = { version = "1.0.190", features = ["derive"] }

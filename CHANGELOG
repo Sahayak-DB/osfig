@@ -1,3 +1,10 @@
+v0.2.0
++settings file save/load
++multiple glob pattern support per-scan
++enabling/disabling file scan data collection by type in settings
++enhanced log entries
++improved documentation on usage and configuration
+
 
 v0.1.0
 +glob pattern matching on paths

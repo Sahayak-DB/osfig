@@ -1,12 +1,13 @@
+use crate::osfig_state::load_osfig_settings;
 use crate::win_helpers::get_cur_username;
 use log::info;
-use std::env::args;
 
 mod file;
 mod hashing;
 mod logging;
 mod osfig_state;
 mod registry;
+mod scan_settings;
 mod win_acl;
 mod win_helpers;
 
@@ -21,16 +22,15 @@ fn main() -> std::io::Result<()> {
     crate::osfig_state::print_usage();
     info!("Current Running User: {}", get_cur_username());
 
-    // Testing file hashing
-    // Grab args, drop the 0th, and boogie
-    let mut options: Vec<String> = args().collect();
-    options.remove(0);
-    let mut pattern = ".\\test files\\*";
-    if options.len() == 1 {
-        pattern = options.get(0).unwrap();
-    }
+    // Todo implement args
+    // let mut options: Vec<String> = args().collect();
+    // options.remove(0);
+    // if options.len() == 1 {
+    //     pattern = options.get(0).unwrap();
+    // }
+    let osfig_settings = load_osfig_settings();
 
-    file::scan_files(pattern);
+    file::scan_files(&osfig_settings);
     info!("File scanning complete");
 
     registry::scan_reg_keys();

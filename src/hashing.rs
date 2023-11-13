@@ -1,3 +1,4 @@
+use crate::scan_settings::FileHashes;
 use blake2s_simd;
 use blake2s_simd::Params;
 use log::info;
@@ -23,12 +24,23 @@ impl fmt::Display for HashValues {
     }
 }
 
-pub fn get_all_hashes(path: &Path) -> HashValues {
-    let hashes: HashValues = HashValues {
-        md5: get_md5(path),
-        sha256: get_sha256(path),
-        blake2s: get_blake2s(path),
+pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
+    let mut hashes: HashValues = HashValues {
+        md5: "".to_string(),
+        sha256: "".to_string(),
+        blake2s: "".to_string(),
     };
+
+    if hash_values.md5 {
+        hashes.md5 = get_md5(path);
+    }
+    if hash_values.md5 {
+        hashes.sha256 = get_sha256(path);
+    }
+    if hash_values.blake2s {
+        hashes.blake2s = get_blake2s(path);
+    }
+
     hashes
 }
 pub fn get_md5(path: &Path) -> String {

@@ -86,3 +86,7 @@ Matching all username directories on a system is easy with wildcards. This examp
 ### Linux
 
 * Not yet supported by OSFIG
+
+
+
+This file is formatted with markdown syntax, so if viewed in a non-markdown reader, there will be incorrect and unnecessary formatting marks that may confuse your understanding. If this is the case, read the file from the GitHub repo online as it will natively display the markdown output display on the website.
