@@ -1,7 +1,10 @@
+#[cfg(windows)]
 use crate::win_helpers;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+#[cfg(windows)]
 use winapi::um::winnt;
+#[cfg(windows)]
 use windows_acl::acl::{ACLEntry, AceType, ACL};
 
 #[allow(unused)]
@@ -20,6 +23,8 @@ pub struct WinAcl {
     pub(crate) acl_entries: Vec<WinaclEntry>,
 }
 
+#[cfg(windows)]
+
 pub fn get_dacls(path: &Path) -> WinAcl {
     let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
     let mut acl_result: WinAcl = WinAcl {
@@ -34,6 +39,7 @@ pub fn get_dacls(path: &Path) -> WinAcl {
     acl_result
 }
 
+#[cfg(windows)]
 pub fn get_sacls(path: &Path) -> WinAcl {
     let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
     let mut acl_result: WinAcl = WinAcl {
@@ -48,6 +54,7 @@ pub fn get_sacls(path: &Path) -> WinAcl {
     acl_result
 }
 
+#[cfg(windows)]
 fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
     // Some of the code in this function was heavily influenced by example code from the creator
     // of the winnt crate. I strongly encourage you to check it out for your own projects.

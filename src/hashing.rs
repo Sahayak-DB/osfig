@@ -31,14 +31,16 @@ pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
         blake2s: "".to_string(),
     };
 
-    if hash_values.md5 {
-        hashes.md5 = get_md5(path);
-    }
-    if hash_values.md5 {
-        hashes.sha256 = get_sha256(path);
-    }
-    if hash_values.blake2s {
-        hashes.blake2s = get_blake2s(path);
+    if path.is_file() {
+        if hash_values.md5 {
+            hashes.md5 = get_md5(path);
+        }
+        if hash_values.md5 {
+            hashes.sha256 = get_sha256(path);
+        }
+        if hash_values.blake2s {
+            hashes.blake2s = get_blake2s(path);
+        }
     }
 
     hashes

@@ -1,22 +1,28 @@
 use crate::hashing;
 use crate::osfig_state::OsfigSettings;
+#[cfg(windows)]
+use crate::win_acl::{get_dacls, get_sacls, WinAcl};
 use chrono::DateTime;
 use chrono::Utc;
 use filetime::FileTime;
 use glob::{glob, GlobResult};
+#[cfg(windows)]
 use is_elevated::is_elevated;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs::File;
 use std::io::{BufWriter, Read};
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::MetadataExt;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
 use std::{fs, thread, time};
-
-use crate::win_acl::{get_dacls, get_sacls, WinAcl};
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,7 +44,9 @@ pub struct FileScanResult {
     pub(crate) size: u64,
     pub(crate) attrs: u32,
     pub(crate) contents: String,
+    #[cfg(windows)]
     pub(crate) dacl: WinAcl,
+    #[cfg(windows)]
     pub(crate) sacl: WinAcl,
 }
 
@@ -165,10 +173,12 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
             size: 0,
             attrs: 0,
             contents: "".to_string(),
+            #[cfg(windows)]
             dacl: WinAcl {
                 object_type: "".to_string(),
                 acl_entries: vec![],
             },
+            #[cfg(windows)]
             sacl: WinAcl {
                 object_type: "".to_string(),
                 acl_entries: vec![],
@@ -183,10 +193,13 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     let md = fs::metadata(path).unwrap();
 
     let file_time = FileTime::from_creation_time(&md);
+    #[cfg(windows)]
     let created_time = DateTime::from_timestamp(
         file_time.unwrap().unix_seconds(),
         file_time.unwrap().nanoseconds(),
     );
+    #[cfg(target_os = "linux")]
+    let created_time = DateTime::from_timestamp(md.ctime(), 0);
 
     let file_time = FileTime::from_last_modification_time(&md);
     let mod_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
@@ -197,40 +210,45 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
 
     // File contents
     let mut utf8_contents: String = "".to_string();
-    if settings.scan_settings.file_content {
-        if File::open(path).is_err() {
-            info!("Cannot open file: {:?}", path.to_str());
-            utf8_contents = String::from("Cannot open file");
-        } else {
-            // Todo Consider using crate simdutf8 in the future for performance enhancements
-            let mut myfile = File::open(path).unwrap();
-            let mut file_contents: Vec<u8> = Vec::new();
-            // Collect file contents but intentionally fail on non-UTF8 content. There's no value in
-            // storing content from other-encoded files.
-            myfile
-                .read_to_end(&mut file_contents)
-                .expect("Not valid UTF8");
-            utf8_contents = match std::str::from_utf8(file_contents.as_slice()) {
-                Ok(contents) => contents,
-                Err(_e) => "Not valid UTF8",
+    if path.is_file() {
+        if settings.scan_settings.file_content {
+            if File::open(path).is_err() {
+                info!("Cannot open file: {:?}", path.to_str());
+                utf8_contents = String::from("Cannot open file");
+            } else {
+                // Todo Consider using crate simdutf8 in the future for performance enhancements
+                let mut myfile = File::open(path).unwrap();
+                let mut file_contents: Vec<u8> = Vec::new();
+                // Collect file contents but intentionally fail on non-UTF8 content. There's no value in
+                // storing content from other-encoded files.
+                myfile
+                    .read_to_end(&mut file_contents)
+                    .expect("Not valid UTF8");
+                utf8_contents = match std::str::from_utf8(file_contents.as_slice()) {
+                    Ok(contents) => contents,
+                    Err(_e) => "Not valid UTF8",
+                }
+                .parse()
+                .unwrap();
             }
-            .parse()
-            .unwrap();
         }
     }
 
+    #[cfg(windows)]
     let mut dacl_result = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
     };
+    #[cfg(windows)]
     if settings.scan_settings.file_dacl {
         dacl_result = get_dacls(path);
     }
-
+    #[cfg(windows)]
     let mut sacl_result = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
     };
+    #[cfg(windows)]
     if is_elevated() {
         if settings.scan_settings.file_sacl {
             sacl_result = get_sacls(path);
@@ -261,10 +279,17 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
         ctime: created_time.unwrap().to_string(),
         mtime: mod_time.unwrap().to_string(),
         atime: DateTime::<Utc>::default().to_string(),
+        #[cfg(windows)]
         size: md.file_size(),
+        #[cfg(target_os = "linux")]
+        size: md.size(),
+        #[cfg(windows)]
         attrs: md.file_attributes(),
+        attrs: md.permissions().mode(),
         contents: utf8_contents,
+        #[cfg(windows)]
         dacl: dacl_result,
+        #[cfg(windows)]
         sacl: sacl_result,
     };
 

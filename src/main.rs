@@ -1,5 +1,7 @@
 use crate::osfig_state::load_osfig_settings;
+#[cfg(windows)]
 use crate::win_helpers::get_cur_username;
+
 use log::info;
 
 mod file;
@@ -20,6 +22,7 @@ fn main() -> std::io::Result<()> {
     info!("Logging setup completed");
     info!("Initializing OSFIG");
     crate::osfig_state::print_usage();
+    #[cfg(windows)]
     info!("Current Running User: {}", get_cur_username());
 
     // Todo implement args
@@ -33,6 +36,7 @@ fn main() -> std::io::Result<()> {
     file::scan_files(&osfig_settings);
     info!("File scanning complete");
 
+    #[cfg(windows)]
     registry::scan_reg_keys();
     info!("Registry scanning complete");
 

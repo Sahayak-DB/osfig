@@ -1,6 +1,9 @@
+#[cfg(windows)]
 use winapi::shared::minwindef::BYTE;
+#[cfg(windows)]
 use windows_permissions::{LocalBox, Sid};
 
+#[cfg(windows)]
 #[allow(unused)]
 pub fn get_cur_sid() -> Vec<BYTE> {
     let cur_user = windows_acl::helper::current_user();
@@ -10,11 +13,13 @@ pub fn get_cur_sid() -> Vec<BYTE> {
 }
 
 #[allow(unused)]
+#[cfg(windows)]
 pub fn get_cur_username() -> String {
     windows_acl::helper::current_user().unwrap()
 }
 
 #[allow(unused)]
+#[cfg(windows)]
 pub fn sid_to_username(sid: &String) -> (String, String) {
     // Construct ACL System\Username
     let acl_sid: LocalBox<Sid> = sid.parse().unwrap();
