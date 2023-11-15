@@ -1,5 +1,7 @@
 use crate::helpers;
+use log::warn;
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 use std::path::Path;
 #[cfg(windows)]
 use {
@@ -25,7 +27,14 @@ pub struct WinAcl {
 
 #[cfg(windows)]
 pub fn get_win_dacls(path: &Path) -> WinAcl {
-    let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
+    if File::open(&path).is_err() {
+        warn!("Cannot open file: {}", path.to_str().unwrap());
+        return WinAcl {
+            object_type: "".to_string(),
+            acl_entries: vec![],
+        };
+    }
+    let dacl = ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
@@ -40,14 +49,21 @@ pub fn get_win_dacls(path: &Path) -> WinAcl {
 
 #[cfg(windows)]
 pub fn get_win_sacls(path: &Path) -> WinAcl {
-    let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
+    if File::open(&path).is_err() {
+        warn!("Cannot open file: {}", path.to_str().unwrap());
+        return WinAcl {
+            object_type: "".to_string(),
+            acl_entries: vec![],
+        };
+    }
+    let sacl = ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
     };
-    acl_result.object_type = dacl.object_type().to_string();
-    for item in &dacl.all().unwrap() {
-        let acl_entry = read_win_file_acl(&dacl, item);
+    acl_result.object_type = sacl.object_type().to_string();
+    for item in &sacl.all().unwrap() {
+        let acl_entry = read_win_file_acl(&sacl, item);
         acl_result.acl_entries.push(acl_entry);
     }
     acl_result

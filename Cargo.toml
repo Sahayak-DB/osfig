@@ -1,6 +1,6 @@
 [package]
 name = "osfig"
-version = "0.2.0"
+version = "0.2.1"
 description = "Open Source Forensic Integrity Guard - A simple tool for use in establishing better forensic security controls."
 homepage = "https://github.com/Sahayak-DB/osfig"
 repository = "https://github.com/Sahayak-DB/osfig"

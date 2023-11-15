@@ -1,7 +1,7 @@
 use crate::scan_settings::FileHashes;
 use blake2s_simd;
 use blake2s_simd::Params;
-use log::info;
+use log::{info, warn};
 use sha256::try_digest;
 use std::fmt;
 use std::fs::File;
@@ -41,6 +41,7 @@ pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
         if hash_values.blake2s {
             hashes.blake2s = get_blake2s(path);
         }
+        info!("Hashing complete");
     }
 
     hashes
@@ -49,7 +50,10 @@ pub fn get_md5(path: &Path) -> String {
     // MD5 does have collissions, but it's still widely employed with commercial software
     // that users may need to compare with.
     if File::open(path).is_err() {
-        info!("Cannot open file for hashing: {:?}", path.to_str());
+        warn!(
+            "Cannot open file for md5 hashing: {:?}",
+            path.to_str().unwrap()
+        );
         return String::from("Cannot open file");
     }
 
@@ -80,7 +84,10 @@ pub fn get_md5(path: &Path) -> String {
 
 pub fn get_sha256(path: &Path) -> String {
     if File::open(path).is_err() {
-        info!("Cannot open file for hashing: {:?}", path.to_str());
+        warn!(
+            "Cannot open file for sha256 hashing: {:?}",
+            path.to_str().unwrap()
+        );
         return String::from("Cannot open file");
     }
 
@@ -90,7 +97,10 @@ pub fn get_sha256(path: &Path) -> String {
 
 pub fn get_blake2s(path: &Path) -> String {
     if File::open(path).is_err() {
-        info!("Cannot open file for hashing: {:?}", path.to_str());
+        warn!(
+            "Cannot open file for blake2s hashing: {:?}",
+            path.to_str().unwrap()
+        );
         return String::from("Cannot open file");
     }
 

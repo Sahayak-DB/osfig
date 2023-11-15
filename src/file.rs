@@ -253,8 +253,8 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
         }
     }
 
-    let canonical_path = format!("{:?}", &path.canonicalize().unwrap().to_str().unwrap());
-    debug!("File scan results complete: {}", canonical_path);
+    let scan_path = format!("{:?}", &path.to_str().unwrap());
+    debug!("File scan results complete: {}", scan_path);
 
     // We have our scan data--save into the FileScanResult. Note that I have intentionally placed
     // the scantime value as now() instead of when we first checked the file. It takes only a few
@@ -264,7 +264,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     // using this moment to declare the scan as "done" and store the results with this timestamp.
     let filescanresult: FileScanResult = FileScanResult {
         scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
-        path: Box::new(path.canonicalize().unwrap().to_owned()),
+        path: Box::new(path.to_path_buf()),
         is_dir: md.is_dir(),
         is_file: md.is_file(),
         is_sym: md.is_symlink(),
