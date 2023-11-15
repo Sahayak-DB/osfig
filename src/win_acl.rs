@@ -1,11 +1,11 @@
-#[cfg(windows)]
-use crate::win_helpers;
+use crate::helpers;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 #[cfg(windows)]
-use winapi::um::winnt;
-#[cfg(windows)]
-use windows_acl::acl::{ACLEntry, AceType, ACL};
+use {
+    winapi::um::winnt,
+    windows_acl::acl::{ACLEntry, AceType, ACL},
+};
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,8 +24,7 @@ pub struct WinAcl {
 }
 
 #[cfg(windows)]
-
-pub fn get_dacls(path: &Path) -> WinAcl {
+pub fn get_win_dacls(path: &Path) -> WinAcl {
     let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
@@ -40,7 +39,7 @@ pub fn get_dacls(path: &Path) -> WinAcl {
 }
 
 #[cfg(windows)]
-pub fn get_sacls(path: &Path) -> WinAcl {
+pub fn get_win_sacls(path: &Path) -> WinAcl {
     let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
@@ -207,7 +206,7 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
     acl_entry_result.acl_mask = masks;
 
     // Construct ACL System\Username
-    let (system_name, user_name) = win_helpers::sid_to_username(&sid);
+    let (system_name, user_name) = helpers::sid_to_username(&sid);
     acl_entry_result.acl_sid = sid;
     acl_entry_result.acl_user = format!("{}\\{}", system_name, user_name);
 

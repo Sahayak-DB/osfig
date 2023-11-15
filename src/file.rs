@@ -1,35 +1,34 @@
 use crate::hashing;
 use crate::osfig_state::OsfigSettings;
-#[cfg(windows)]
-use crate::win_acl::{get_dacls, get_sacls, WinAcl};
 use chrono::DateTime;
 use chrono::Utc;
 use filetime::FileTime;
 use glob::{glob, GlobResult};
-#[cfg(windows)]
-use is_elevated::is_elevated;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs::File;
 use std::io::{BufWriter, Read};
-#[cfg(target_os = "linux")]
-use std::os::unix::fs::MetadataExt;
-#[cfg(target_os = "linux")]
-use std::os::unix::fs::PermissionsExt;
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
 use std::{fs, thread, time};
+
+#[cfg(windows)]
+use {
+    crate::win_acl::{get_win_dacls, get_win_sacls, WinAcl},
+    is_elevated::is_elevated,
+    std::os::windows::fs::MetadataExt,
+};
+
+#[cfg(target_os = "linux")]
+use {std::os::unix::fs::MetadataExt, std::os::unix::fs::PermissionsExt};
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileScanResult {
     pub(crate) scantime: String,
     pub(crate) path: Box<PathBuf>,
-    pub(crate) name: String,
     pub(crate) is_dir: bool,
     pub(crate) is_file: bool,
     pub(crate) is_sym: bool,
@@ -158,7 +157,6 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
         let filescanresult: FileScanResult = FileScanResult {
             scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
             path: Box::new(PathBuf::from(path)),
-            name: "".to_string(),
             is_dir: false,
             is_file: false,
             is_sym: false,
@@ -241,7 +239,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     };
     #[cfg(windows)]
     if settings.scan_settings.file_dacl {
-        dacl_result = get_dacls(path);
+        dacl_result = get_win_dacls(path);
     }
     #[cfg(windows)]
     let mut sacl_result = WinAcl {
@@ -251,7 +249,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     #[cfg(windows)]
     if is_elevated() {
         if settings.scan_settings.file_sacl {
-            sacl_result = get_sacls(path);
+            sacl_result = get_win_sacls(path);
         }
     }
 
@@ -267,7 +265,6 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     let filescanresult: FileScanResult = FileScanResult {
         scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
         path: Box::new(path.canonicalize().unwrap().to_owned()),
-        name: "".to_string(),
         is_dir: md.is_dir(),
         is_file: md.is_file(),
         is_sym: md.is_symlink(),
@@ -285,6 +282,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
         size: md.size(),
         #[cfg(windows)]
         attrs: md.file_attributes(),
+        #[cfg(target_os = "linux")]
         attrs: md.permissions().mode(),
         contents: utf8_contents,
         #[cfg(windows)]

@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 pub struct HashValues {
-    // Is there a real need to add 128 or 512 or others like Blake2?
+    // Is there a real need to add 128 or 512?
     pub md5: String,
     pub sha256: String,
     pub blake2s: String,

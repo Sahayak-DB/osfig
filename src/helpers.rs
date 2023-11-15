@@ -1,7 +1,8 @@
 #[cfg(windows)]
-use winapi::shared::minwindef::BYTE;
-#[cfg(windows)]
-use windows_permissions::{LocalBox, Sid};
+use {
+    winapi::shared::minwindef::BYTE,
+    windows_permissions::{LocalBox, Sid},
+};
 
 #[cfg(windows)]
 #[allow(unused)]
@@ -13,9 +14,13 @@ pub fn get_cur_sid() -> Vec<BYTE> {
 }
 
 #[allow(unused)]
-#[cfg(windows)]
 pub fn get_cur_username() -> String {
-    windows_acl::helper::current_user().unwrap()
+    #[cfg(windows)]
+    return windows_acl::helper::current_user().unwrap();
+
+    #[cfg(target_os = "linux")]
+    // Todo implement current username in Linux
+    return "".to_string();
 }
 
 #[allow(unused)]

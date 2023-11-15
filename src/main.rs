@@ -1,17 +1,18 @@
+use crate::helpers::get_cur_username;
 use crate::osfig_state::load_osfig_settings;
-#[cfg(windows)]
-use crate::win_helpers::get_cur_username;
-
 use log::info;
 
 mod file;
 mod hashing;
+mod helpers;
 mod logging;
 mod osfig_state;
-mod registry;
 mod scan_settings;
+
+#[cfg(windows)]
+mod registry;
+#[cfg(windows)]
 mod win_acl;
-mod win_helpers;
 
 fn main() -> std::io::Result<()> {
     logging::setup_logging();
@@ -22,7 +23,6 @@ fn main() -> std::io::Result<()> {
     info!("Logging setup completed");
     info!("Initializing OSFIG");
     crate::osfig_state::print_usage();
-    #[cfg(windows)]
     info!("Current Running User: {}", get_cur_username());
 
     // Todo implement args
@@ -33,17 +33,20 @@ fn main() -> std::io::Result<()> {
     // }
     let osfig_settings = load_osfig_settings();
 
-    file::scan_files(&osfig_settings);
-    info!("File scanning complete");
+    if osfig_settings.scan_settings.scan_files {
+        file::scan_files(&osfig_settings);
+        info!("File scanning complete");
+    }
 
     #[cfg(windows)]
-    registry::scan_reg_keys();
-    info!("Registry scanning complete");
+    if osfig_settings.scan_settings.scan_registry {
+        registry::scan_reg_keys();
+        info!("Registry scanning complete");
+    }
 
     Ok(())
 }
 
-// Todo Configuration file for runtime directions
 // Todo Store scans in local db for comparisons
 // Todo Show only changed files in output
 // Todo Show all results in ultra-verbose mode

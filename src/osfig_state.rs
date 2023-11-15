@@ -121,7 +121,7 @@ pub fn load_osfig_settings() -> OsfigSettings {
         Ok(_) => {}
         Err(_) => {
             error!("Unable to read settings file. Aborting!");
-            error!("Troubleshooting: Move the config file to another location and let OSFIG create a new one: Add your customizations back manually: Save in UTF-8");
+            error!("Troubleshooting: Move the config file to another location and let OSFIG create a new one: Add your customizations back manually: Save in UTF-8, no BOM");
             exit(1);
         }
     };

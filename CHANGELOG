@@ -4,6 +4,7 @@ v0.2.0
 +enabling/disabling file scan data collection by type in settings
 +enhanced log entries
 +improved documentation on usage and configuration
++linux support
 
 
 v0.1.0

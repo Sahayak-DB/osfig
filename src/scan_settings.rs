@@ -35,7 +35,7 @@ pub fn get_default_scan_settings() -> ScanSettings {
         },
         file_dacl: true,
         file_sacl: false,
-        file_content: true,
+        file_content: false,
         file_scan_delay: 0,
         scan_registry: true,
         registry_patterns: get_default_registry_paths(),
@@ -46,16 +46,49 @@ pub fn get_default_scan_settings() -> ScanSettings {
 
 fn get_default_file_paths() -> Vec<String> {
     let mut patterns = Vec::new();
-    patterns.push("C:\\autoexec.bat".to_string());
-    patterns.push("C:\\boot.ini".to_string());
-    patterns.push("C:\\config.sys".to_string());
+    patterns.push("C:\\*.bat".to_string());
+    patterns.push("C:\\*.ini".to_string());
+    patterns.push("C:\\*.sys".to_string());
+    patterns.push("C:\\Windows".to_string());
     patterns.push("C:\\Windows\\*.exe".to_string());
     patterns.push("C:\\Windows\\*.ini".to_string());
+    patterns.push("C:\\Windows\\*.sys".to_string());
     patterns.push("C:\\Windows\\*.dll".to_string());
     patterns.push("C:\\Windows\\System32".to_string());
     patterns.push("C:\\Windows\\System32\\*.exe".to_string());
     patterns.push("C:\\Windows\\System32\\*.ini".to_string());
+    patterns.push("C:\\Windows\\System32\\*.sys".to_string());
     patterns.push("C:\\Windows\\System32\\*.dll".to_string());
+    patterns.push("C:\\Windows\\System32\\drivers\\etc".to_string());
+    patterns.push("C:\\Windows\\System32\\drivers\\etc\\*".to_string());
+    patterns.push("/boot".to_string());
+    patterns.push("/root".to_string());
+    patterns.push("/root/.ssh".to_string());
+    patterns.push("/.ssh/**".to_string());
+    patterns.push("/home/*/.ssh/**".to_string());
+    patterns.push("/etc".to_string());
+    patterns.push("/etc/*".to_string());
+    patterns.push("/lib/".to_string());
+    patterns.push("/lib/*".to_string());
+    patterns.push("/lib64/".to_string());
+    patterns.push("/lib64/*".to_string());
+    patterns.push("/bin".to_string());
+    patterns.push("/bin/*".to_string());
+    patterns.push("/sbin".to_string());
+    patterns.push("/sbin/*".to_string());
+    patterns.push("/usr/bin".to_string());
+    patterns.push("/usr/bin/*".to_string());
+    patterns.push("/usr/local/bin".to_string());
+    patterns.push("/usr/local/bin/*".to_string());
+    patterns.push("/usr/local/sbin".to_string());
+    patterns.push("/usr/local/sbin/*".to_string());
+    patterns.push("/usr/sbin".to_string());
+    patterns.push("/usr/sbin/*".to_string());
+    patterns.push("/usr/share/keyrings".to_string());
+    patterns.push("/usr/libexec/openssh".to_string());
+    patterns.push("/usr/libexec/openssh/*".to_string());
+    patterns.push("/usr/kerberos/bin".to_string());
+    patterns.push("/usr/kerberos/bin/*".to_string());
 
     patterns
 }
