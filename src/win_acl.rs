@@ -1,8 +1,13 @@
-use crate::win_helpers;
+use crate::helpers;
+use log::warn;
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 use std::path::Path;
-use winapi::um::winnt;
-use windows_acl::acl::{ACLEntry, AceType, ACL};
+#[cfg(windows)]
+use {
+    winapi::um::winnt,
+    windows_acl::acl::{ACLEntry, AceType, ACL},
+};
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,8 +25,16 @@ pub struct WinAcl {
     pub(crate) acl_entries: Vec<WinaclEntry>,
 }
 
-pub fn get_dacls(path: &Path) -> WinAcl {
-    let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
+#[cfg(windows)]
+pub fn get_win_dacls(path: &Path) -> WinAcl {
+    if File::open(&path).is_err() {
+        warn!("Cannot open file: {}", path.to_str().unwrap());
+        return WinAcl {
+            object_type: "".to_string(),
+            acl_entries: vec![],
+        };
+    }
+    let dacl = ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
@@ -34,20 +47,29 @@ pub fn get_dacls(path: &Path) -> WinAcl {
     acl_result
 }
 
-pub fn get_sacls(path: &Path) -> WinAcl {
-    let dacl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
+#[cfg(windows)]
+pub fn get_win_sacls(path: &Path) -> WinAcl {
+    if File::open(&path).is_err() {
+        warn!("Cannot open file: {}", path.to_str().unwrap());
+        return WinAcl {
+            object_type: "".to_string(),
+            acl_entries: vec![],
+        };
+    }
+    let sacl = ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
     };
-    acl_result.object_type = dacl.object_type().to_string();
-    for item in &dacl.all().unwrap() {
-        let acl_entry = read_win_file_acl(&dacl, item);
+    acl_result.object_type = sacl.object_type().to_string();
+    for item in &sacl.all().unwrap() {
+        let acl_entry = read_win_file_acl(&sacl, item);
         acl_result.acl_entries.push(acl_entry);
     }
     acl_result
 }
 
+#[cfg(windows)]
 fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
     // Some of the code in this function was heavily influenced by example code from the creator
     // of the winnt crate. I strongly encourage you to check it out for your own projects.
@@ -200,7 +222,7 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
     acl_entry_result.acl_mask = masks;
 
     // Construct ACL System\Username
-    let (system_name, user_name) = win_helpers::sid_to_username(&sid);
+    let (system_name, user_name) = helpers::sid_to_username(&sid);
     acl_entry_result.acl_sid = sid;
     acl_entry_result.acl_user = format!("{}\\{}", system_name, user_name);
 

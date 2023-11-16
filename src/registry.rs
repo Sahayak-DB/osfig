@@ -1,5 +1,7 @@
+#[cfg(windows)]
 use winreg::enums::HKEY_LOCAL_MACHINE;
 
+#[cfg(windows)]
 pub fn scan_reg_keys() {
     // Testing Registry Browsing
     println!("\nRegistry--");
