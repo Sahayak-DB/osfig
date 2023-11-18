@@ -21,6 +21,7 @@ use {
     std::os::windows::fs::MetadataExt,
 };
 
+use crate::scan_settings::FileScanSetting;
 #[cfg(target_os = "linux")]
 use {std::os::unix::fs::MetadataExt, std::os::unix::fs::PermissionsExt};
 
@@ -82,46 +83,50 @@ fn store_json(results: &Vec<FileScanResult>) {
 }
 
 pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
-    let patterns: &Vec<String> = &osfig_settings.scan_settings.file_patterns;
-    info!("Using file pattern: {:?}", patterns);
+    let file_scan_settings = &osfig_settings.scan_settings.file_scan_settings;
     let mut results: Vec<FileScanResult> = Vec::new();
 
-    for pattern in patterns {
-        // Validate there is no PatternError being returned. Fail fast if so by creating a new glob
-        // match that will be empty.
-        let glob_match = match glob(pattern) {
-            Ok(paths) => {
-                info!("Valid glob pattern - Checking file results");
-                paths
-            }
-            Err(e) => {
-                error!("Invalid Glob Pattern: Error: {}", e);
-                glob("").unwrap()
-            }
-        };
+    for file_scan_setting in file_scan_settings {
+        let patterns: &Vec<String> = &file_scan_setting.file_patterns;
+        info!("Using file pattern: {:?}", patterns);
 
-        // Validate if a GlobError occurs on any found path. These are usually permissions/access errors
-        // in the OS since we retrieved them from our Paths result returned by glob::glob.
-        for entry in glob_match.into_iter() {
-            match entry {
-                Ok(_) => {}
-                Err(e) => {
-                    warn!("Glob Error: {}", e);
-                    continue;
+        for pattern in patterns {
+            // Validate there is no PatternError being returned. Fail fast if so by creating a new glob
+            // match that will be empty.
+            let glob_match = match glob(pattern) {
+                Ok(paths) => {
+                    info!("Valid glob pattern - Checking file results");
+                    paths
                 }
-            }
-            // Todo add a glob based negation pattern and check if path is not in the anti-pattern matches
-            results.push(scan_file(&osfig_settings, &entry));
+                Err(e) => {
+                    error!("Invalid Glob Pattern: Error: {}", e);
+                    glob("").unwrap()
+                }
+            };
 
-            // This is quick and dirty for testing, but quite effective at reducing CPU and Disk
-            // utilization figures. I may keep it for awhile given the simplicity to implement and
-            // how predictable it is in execution for a less knowledgeable end user. It is, after
-            // all, deterministic, albeit crude.
-            // Todo should this sleep be added to file content reads using a buffered reader too?
-            let ten_millis = time::Duration::from_millis(
-                u64::from(osfig_settings.scan_settings.file_scan_delay).clone(),
-            );
-            thread::sleep(ten_millis);
+            // Validate if a GlobError occurs on any found path. These are usually permissions/access errors
+            // in the OS since we retrieved them from our Paths result returned by glob::glob.
+            for entry in glob_match.into_iter() {
+                match entry {
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!("Glob Error: {}", e);
+                        continue;
+                    }
+                }
+                // Todo add a glob based negation pattern and check if path is not in the anti-pattern matches
+                results.push(scan_file(&file_scan_setting, &entry));
+
+                // This is quick and dirty for testing, but quite effective at reducing CPU and Disk
+                // utilization figures. I may keep it for awhile given the simplicity to implement and
+                // how predictable it is in execution for a less knowledgeable end user. It is, after
+                // all, deterministic, albeit crude.
+                // Todo should this sleep be added to file content reads using a buffered reader too?
+                let ten_millis = time::Duration::from_millis(
+                    u64::from(osfig_settings.scan_settings.file_scan_delay).clone(),
+                );
+                thread::sleep(ten_millis);
+            }
         }
     }
 
@@ -138,7 +143,7 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
     results
 }
 
-pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanResult {
+pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileScanResult {
     let path = match glob_match.as_ref() {
         Ok(path) => path,
         Err(e) => {
@@ -187,7 +192,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     }
 
     // At this point, we have a living result for a path. Collect the associated data.
-    let hashes = hashing::get_all_hashes(&settings.scan_settings.file_hashes, path);
+    let hashes = hashing::get_all_hashes(&settings.file_hashes, path);
     let md = fs::metadata(path).unwrap();
 
     let file_time = FileTime::from_creation_time(&md);
@@ -209,7 +214,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     // File contents
     let mut utf8_contents: String = "".to_string();
     if path.is_file() {
-        if settings.scan_settings.file_content {
+        if settings.file_content {
             if File::open(path).is_err() {
                 info!("Cannot open file: {:?}", path.to_str());
                 utf8_contents = String::from("Cannot open file");
@@ -238,7 +243,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
         acl_entries: vec![],
     };
     #[cfg(windows)]
-    if settings.scan_settings.file_dacl {
+    if settings.file_dacl {
         dacl_result = get_win_dacls(path);
     }
     #[cfg(windows)]
@@ -248,7 +253,7 @@ pub fn scan_file(settings: &OsfigSettings, glob_match: &GlobResult) -> FileScanR
     };
     #[cfg(windows)]
     if is_elevated() {
-        if settings.scan_settings.file_sacl {
+        if settings.file_sacl {
             sacl_result = get_win_sacls(path);
         }
     }

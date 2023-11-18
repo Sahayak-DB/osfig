@@ -1,6 +1,10 @@
+v0.3.0
++per-path settings in config file
++sbom in spdx/json format
++update to rust 1.74
+
 v0.2.1
 +bugfixes for insufficient permissions to access files
-
 
 v0.2.0
 +settings file save/load
