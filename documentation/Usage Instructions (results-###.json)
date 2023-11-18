@@ -1,0 +1,84 @@
+# Usage Instructions
+
+## Results file formatting
+The OSFIG results file uses standard JSON formatting. There are multiple guides on the internet showcasing how to correctly interpret JSON formatted files.
+
+### scantime
+This value represents the exact time the scan was completed (not started) for a single result. It is always stored in ISO 8601 format for UTC and is not timezone aware.
+* Allowed values:
+* Formatting:
+* Example:
+
+### path
+This value represents a more human-readable file path which was expanded from the glob pattern inputs in the scan settings. Whereas a glob pattern may represent many distinct file system locations, this path will represent just one location.
+
+### is_dir
+A true/false value indicating if the path is a directory.
+
+### is_file
+A true/false value indicating if the path is a file.
+
+### is_sym
+A true/false value indicating if the path is a symlink.
+
+### is_readonly
+A true/false value indicating if the path is set to read only.
+
+### exists
+A true/false value indicating if the path exists. Note that due to glob expansion from the settings, technically any path in the results did exist the moment OSFIG started a scan, however this field exists to cover cases for ephemeral files that are short lived. If a file was deleted between the time a scan was started, and OSFIG scanning this particular path, you would see a mostly empty result with exists: false.
+
+### hashes
+* md5
+  * This value populates an md5 hash when that setting is enabled.
+    * Note: this is only included for compatibility with other legacy systems. md5 hashes should not be relied upon.
+* sha256
+  * This value populates an sha256 hash when that setting is enabled.
+* blake2s
+  * This value populates an blake2s hash when that setting is enabled.
+
+### ctime
+A date/time value in ISO8601 format, UTC time zone, showing the creation time of the path.
+
+### mtime
+A date/time value in ISO8601 format, UTC time zone, showing the last modification time of the path. If this is the same as the ctime, then the path has never been modified.
+
+### atime
+A date/time value in ISO8601 format, UTC time zone, showing the last access time of a path.
+
+### size
+An integer value showing the number of bytes the path requires. This is not the size on disk value which will vary based upon storage volume geometry. OSFIG will only represent the quantity of bytes of data for any given path. This is the common practice among the majority of software, so this value can be used for comparison in other systems.
+> For example, if you have a file containing 1024 bytes of data and your drive sector size is 1024 bytes, then size would equal size on disk. Conversely, if that same file only stored 37 bytes of data, the size on disk would still require 1024 bytes.
+
+### attrs
+This field contains a raw bits value for the file attribute data reported by the OS.
+
+### contents
+A text field containing the full contents of any flat, UTF-8 files where scan settings were enabled to collect content. This will not collect other encoded files. 
+
+### is_modified
+A true/false value indicating if the path is modified from the last OSFIG scan.
+
+### content_diff
+This field contains the file contents with differences. RED highlights are removals and GREEN are additions. This field is mostly unparseable by tools that do not support unicode escape characters and terminal color controls. For this reason, a more human-readable field is also included. This field may be of interest to those running Linux systems or who use terminal tools which are color aware.
+
+### content_diff_readable
+This field is a normalized view of the same content diffs in the prior field. This will label the line numbers and show which lines were --[\[REMOVALS\]] and which were ++[\[ADDITIONS\]].
+
+### dacl / sacl
+The dacl and sacl fields are just parent objects which store the related fields for a DACL or SACL entry. Discretionary ACLs and System ACLs are Windows specific. In order to prevent confusion these fields are intentionally missing when run in Linux.
+#### object_type
+This child field will show the ACL object type, e.g. FileObject.
+#### acl_entries
+  * acl_type
+    * This shows the ACL type, e.g. AccessAllow / AccessDeny. There are additional Access Control Entry (ACE) types for SACls that may be documented more specifically later if it is requested.
+  * acl_flags
+    * This field is primarily used within Windows to explain if an ACE is inherited or not.
+  * acl_sid
+    * If you have to ask what a SID is, you need to spend some time on Microsoft's website.
+    * https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
+  * acl_user
+    * This is the human-readable expansion of a SID into a Domain\\Username result.
+  * acl_mask
+    * The ACL mask is the set of permissions for any given ACE.
+
+> This file is formatted with markdown syntax. If viewed in a non-markdown reader, there will be incorrect and unnecessary formatting marks that may confuse your understanding. If this is the case, read the file from the GitHub repo online as it will natively display the markdown output display on the website.

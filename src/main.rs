@@ -21,7 +21,7 @@ fn main() -> std::io::Result<()> {
         "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
     );
     info!("Logging setup completed");
-    info!("Initializing OSFIG");
+    info!("Initializing OSFIG v{}", env!("CARGO_PKG_VERSION"));
     crate::osfig_state::print_usage();
     info!("Current Running User: {}", get_cur_username());
 
@@ -36,20 +36,21 @@ fn main() -> std::io::Result<()> {
     if osfig_settings.scan_settings.scan_files {
         file::scan_files(&osfig_settings);
         info!("File scanning complete");
+    } else {
+        info!("File scanning disabled this run: Validate settings if this is not intended")
     }
 
     #[cfg(windows)]
     if osfig_settings.scan_settings.scan_registry {
         registry::scan_reg_keys();
         info!("Registry scanning complete");
+    } else {
+        info!("Registry scanning disabled this run: Validate settings if this is not intended")
     }
 
     Ok(())
 }
 
 // Todo Store scans in local db for comparisons
-// Todo Show only changed files in output
-// Todo Show all results in ultra-verbose mode
-// Todo Show contents diffs in verbose mode
 // Todo Set up a build pipeline that automatically addresses versioning
 // Todo Add commandline options

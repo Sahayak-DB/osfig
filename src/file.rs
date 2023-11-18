@@ -4,13 +4,17 @@ use chrono::DateTime;
 use chrono::Utc;
 use filetime::FileTime;
 use glob::{glob, GlobResult};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
+use prettydiff::diff_lines;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use serde_json::from_str;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufWriter, Read};
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::exit;
 use std::time::SystemTime;
 use std::{fs, thread, time};
 
@@ -20,10 +24,10 @@ use {
     is_elevated::is_elevated,
     std::os::windows::fs::MetadataExt,
 };
-
-use crate::scan_settings::FileScanSetting;
 #[cfg(target_os = "linux")]
 use {std::os::unix::fs::MetadataExt, std::os::unix::fs::PermissionsExt};
+
+use crate::scan_settings::FileScanSetting;
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -44,6 +48,9 @@ pub struct FileScanResult {
     pub(crate) size: u64,
     pub(crate) attrs: u32,
     pub(crate) contents: String,
+    pub(crate) is_modified: bool,
+    pub(crate) content_diff: String,
+    pub(crate) content_diff_readable: String,
     #[cfg(windows)]
     pub(crate) dacl: WinAcl,
     #[cfg(windows)]
@@ -51,10 +58,8 @@ pub struct FileScanResult {
 }
 
 fn store_json(results: &Vec<FileScanResult>) {
-    // Testing storage to json file
-    // Todo refactor later for more organized storage of results -- Should this even live here? Plan!
     let results_path = format!(
-        "./scans/latest/results-{}.json",
+        "./scans/results-{}.json",
         DateTime::<Utc>::from(SystemTime::now()).timestamp()
     );
     let scans_dir = Path::new(&results_path).parent().unwrap();
@@ -82,7 +87,77 @@ fn store_json(results: &Vec<FileScanResult>) {
     }
 }
 
+pub fn find_latest_result_file() -> Box<PathBuf> {
+    let result_matches = glob("./scans/*").unwrap();
+    let mut newest_path = PathBuf::new();
+    let mut newest_timestamp = DateTime::<Utc>::from_timestamp(0 as i64, 0 as u32);
+
+    for mut result_match in result_matches {
+        if !result_match.as_mut().unwrap().exists() {
+            continue;
+        }
+        if result_match.as_mut().unwrap().is_dir() {
+            continue;
+        }
+
+        #[cfg(windows)]
+        let this_match_time = DateTime::from_timestamp(
+            FileTime::from_creation_time(&result_match.as_mut().unwrap().metadata().unwrap())
+                .unwrap()
+                .unix_seconds(),
+            FileTime::from_creation_time(&result_match.as_mut().unwrap().metadata().unwrap())
+                .unwrap()
+                .nanoseconds(),
+        );
+        #[cfg(target_os = "linux")]
+        let new_time = DateTime::from_timestamp(md.ctime(), 0);
+
+        if this_match_time > newest_timestamp {
+            newest_timestamp = this_match_time;
+            newest_path = result_match.unwrap().to_path_buf();
+        }
+    }
+
+    Box::new(newest_path)
+}
+
+fn get_latest_results(_osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
+    let results_path = find_latest_result_file();
+    if !results_path.exists() & !results_path.is_file() {
+        return Vec::new();
+    }
+
+    // Attempt to load latest results from json
+    let mut results_file =
+        File::open(find_latest_result_file().to_str().unwrap()).expect("Cannot open file");
+
+    let mut data: String = "".to_string();
+    match results_file.read_to_string(&mut data) {
+        Ok(_) => {}
+        Err(_) => {
+            error!("Unable to read results file. Aborting!");
+            error!(
+                "Troubleshooting: Validate OSFIG has permissions to read file: {}",
+                results_path.to_str().unwrap()
+            );
+            exit(1);
+        }
+    };
+
+    let latest_results = match from_str(data.as_ref()) {
+        Ok(json_data) => json_data,
+        Err(e) => {
+            error!("Encountered error reading prior results: Error: {}", e);
+            return Vec::new();
+        }
+    };
+
+    return latest_results;
+}
+
 pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
+    let last_scan_results = get_latest_results(&osfig_settings);
+
     let file_scan_settings = &osfig_settings.scan_settings.file_scan_settings;
     let mut results: Vec<FileScanResult> = Vec::new();
 
@@ -114,18 +189,56 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
                         continue;
                     }
                 }
-                // Todo add a glob based negation pattern and check if path is not in the anti-pattern matches
-                results.push(scan_file(&file_scan_setting, &entry));
+                let mut skip_entry = false;
+                for negate_pattern in &file_scan_setting.file_ignore_patterns {
+                    let glob_negate_matches = match glob(negate_pattern) {
+                        Ok(paths) => {
+                            debug!("Valid glob ignore pattern - Checking file results");
+                            paths
+                        }
+                        Err(e) => {
+                            warn!("Invalid Glob Ignore Pattern: Error: {}", e);
+                            glob("").unwrap()
+                        }
+                    };
+                    for negation in glob_negate_matches.into_iter() {
+                        match negation {
+                            Ok(_) => {
+                                if entry.as_ref().unwrap().eq(&negation.unwrap()) {
+                                    skip_entry = true;
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Glob Error: {}", e);
+                                continue;
+                            }
+                        }
+                    }
+                    if skip_entry {
+                        break;
+                    }
+                }
+                // We matched our entry to an expanded ignore glob pattern, so skip to next entry.
+                if skip_entry {
+                    debug!(
+                        "Skipping entry due to Ignore Path configuration: {}",
+                        entry.as_ref().unwrap().to_str().unwrap()
+                    );
+                    continue;
+                }
+
+                results.push(scan_file(&file_scan_setting, &entry, &last_scan_results));
 
                 // This is quick and dirty for testing, but quite effective at reducing CPU and Disk
                 // utilization figures. I may keep it for awhile given the simplicity to implement and
                 // how predictable it is in execution for a less knowledgeable end user. It is, after
                 // all, deterministic, albeit crude.
-                // Todo should this sleep be added to file content reads using a buffered reader too?
-                let ten_millis = time::Duration::from_millis(
+                debug!("Sleeping thread before next scan");
+                let delay_millis = time::Duration::from_millis(
                     u64::from(osfig_settings.scan_settings.file_scan_delay).clone(),
                 );
-                thread::sleep(ten_millis);
+                thread::sleep(delay_millis);
             }
         }
     }
@@ -143,7 +256,11 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
     results
 }
 
-pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileScanResult {
+pub fn scan_file(
+    settings: &FileScanSetting,
+    glob_match: &GlobResult,
+    last_scan: &Vec<FileScanResult>,
+) -> FileScanResult {
     let path = match glob_match.as_ref() {
         Ok(path) => path,
         Err(e) => {
@@ -176,6 +293,9 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
             size: 0,
             attrs: 0,
             contents: "".to_string(),
+            is_modified: false,
+            content_diff: "".to_string(),
+            content_diff_readable: "".to_string(),
             #[cfg(windows)]
             dacl: WinAcl {
                 object_type: "".to_string(),
@@ -192,9 +312,13 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
     }
 
     // At this point, we have a living result for a path. Collect the associated data.
+    debug!("File path confirmed: Collecting hashes");
     let hashes = hashing::get_all_hashes(&settings.file_hashes, path);
+
+    debug!("Collecting metadata");
     let md = fs::metadata(path).unwrap();
 
+    debug!("Collecting timestamps");
     let file_time = FileTime::from_creation_time(&md);
     #[cfg(windows)]
     let created_time = DateTime::from_timestamp(
@@ -208,6 +332,7 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
     let mod_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
 
     // Todo research how to avoid update atime when reading file in Windows
+    trace!("atime not yet implemented");
     // let file_time = FileTime::from_last_access_time(&md);
     // let acc_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
 
@@ -215,6 +340,7 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
     let mut utf8_contents: String = "".to_string();
     if path.is_file() {
         if settings.file_content {
+            debug!("Collecting file contents");
             if File::open(path).is_err() {
                 info!("Cannot open file: {:?}", path.to_str());
                 utf8_contents = String::from("Cannot open file");
@@ -258,8 +384,10 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
         }
     }
 
-    let scan_path = format!("{:?}", &path.to_str().unwrap());
-    debug!("File scan results complete: {}", scan_path);
+    debug!(
+        "File scan results complete: {}",
+        format!("{:?}", &path.to_str().unwrap())
+    );
 
     // We have our scan data--save into the FileScanResult. Note that I have intentionally placed
     // the scantime value as now() instead of when we first checked the file. It takes only a few
@@ -267,7 +395,8 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
     // For compliance/audit purposes, it's valuable to ascertain when the result was stored, not
     // when the scan started. Since results aren't available until the scan is "done", we are
     // using this moment to declare the scan as "done" and store the results with this timestamp.
-    let filescanresult: FileScanResult = FileScanResult {
+    debug!("Creating FileScanresult");
+    let mut filescanresult: FileScanResult = FileScanResult {
         scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
         path: Box::new(path.to_path_buf()),
         is_dir: md.is_dir(),
@@ -290,11 +419,211 @@ pub fn scan_file(settings: &FileScanSetting, glob_match: &GlobResult) -> FileSca
         #[cfg(target_os = "linux")]
         attrs: md.permissions().mode(),
         contents: utf8_contents,
+        is_modified: false,
+        content_diff: "".to_string(),
+        content_diff_readable: "".to_string(),
         #[cfg(windows)]
         dacl: dacl_result,
         #[cfg(windows)]
         sacl: sacl_result,
     };
 
+    // Check if the file was modified and update flag
+    debug!("checking if file is_modified");
+    filescanresult.is_modified = check_file_modified(last_scan, &filescanresult);
+
+    /*
+    Since there's no way (with our current data structure) to tell if a file had all lines added
+    or removed, vs us just not scanning content the last time around... we have to just take
+    the results and pass it to the diff comparison for content
+    We can at least validate that content scan was on for this run though.
+    Assuming all of the scenarios that trigger is_modified come back false, then if content
+    scanning is on, we will collect "new" content this run, but won't show any differences.
+    Even if hashes were all off on the last run, we will won't flag a content modification unless
+    at least one criteria was measurably different from the prior run.
+
+    Scenario: Scan 1 has content on, Scan 2 has content off
+    Result: We will not collect content and we will not show content differences
+
+    Scenario: Scan 1 has content off, Scan 2 has content off
+    Result: We will not collect content and we will not show content differences
+
+    Scenario: Scan 1 has content on, Scan 2 has content on
+    Result: We will collect content and we will show content differences
+
+    Scenario: Scan 1 has content off, Scan 2 has content on
+    Result: We will collect content and we will show content differences as if every line was
+    an addition
+    */
+    if settings.file_content && filescanresult.is_modified {
+        debug!("File is_modified: Checking content diffs");
+        let (content_diff, content_diff_readable) = get_content_diff(&filescanresult, last_scan);
+
+        filescanresult.content_diff = content_diff;
+        filescanresult.content_diff_readable = content_diff_readable;
+    }
+
     filescanresult
+}
+
+fn get_content_diff(
+    new_scan: &FileScanResult,
+    old_scan_results: &Vec<FileScanResult>,
+) -> (String, String) {
+    for scan_entry in old_scan_results {
+        if !scan_entry.path.eq(&new_scan.path) {
+            continue;
+        }
+        debug!("Found matching prior scan entry");
+        let diff_result = diff_lines(&scan_entry.contents, &new_scan.contents);
+        let result = diff_result
+            .to_string()
+            .replace(" [9;31m", "--[[") // Replace RED
+            .replace(" [32m", "++[[") // Replace GREEN
+            .replace("[0m", "]]"); // Replace RESET
+
+        let mut readable_output = String::new();
+        let mut line_counter = 0;
+        for line in result.lines() {
+            line_counter += 1;
+
+            if line.contains("--[[") {
+                readable_output.push_str(
+                    String::from(format!("Line {}: {}\n", line_counter.to_string(), line)).as_str(),
+                );
+                // When dealing with a removed line, we need to decrement the line counter so our
+                // final output line numbers match the file in the file system
+                line_counter -= 1;
+                continue;
+            } else {
+                readable_output.push_str(
+                    String::from(format!("Line {}: {}\n", line_counter.to_string(), line)).as_str(),
+                );
+            }
+        }
+
+        // This removes the final line break that we unnecessarily added.
+        readable_output.pop();
+        return (result.to_string(), readable_output);
+    }
+    debug!("Found no matching prior scan entry: Returning empty diffs");
+    return ("".to_string(), "".to_string());
+}
+
+fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResult) -> bool {
+    for scan_entry in last_scan {
+        if &scan_entry.path != &this_scan.path {
+            continue;
+        }
+
+        // We should have a matching path now
+        // Missing files/dirs don't have hashes, so check existence first
+        if !&scan_entry.exists.eq(&this_scan.exists) {
+            return true;
+        }
+
+        // Check that we have hashes on both results, then compare for changes
+        if &scan_entry.blake2s != ""
+            && this_scan.blake2s != ""
+            && !&scan_entry.blake2s.eq(&this_scan.blake2s)
+            || &scan_entry.sha256 != ""
+                && this_scan.sha256 != ""
+                && !&scan_entry.sha256.eq(&this_scan.sha256)
+            || &scan_entry.md5 != "" && this_scan.md5 != "" && !&scan_entry.md5.eq(&this_scan.md5)
+        {
+            // Results have a different hash. File is modified
+            debug!("File hashes differ: Path is_modified");
+            return true;
+        }
+
+        debug!("File hashes do not differ: Checking metadata");
+        // Hash data is not available for comparison. Check other parameters
+        if !&scan_entry.attrs.eq(&this_scan.attrs) {
+            return true;
+        }
+        // Compare sizes
+        if !&scan_entry.size.eq(&this_scan.size) {
+            return true;
+        }
+        // If RO settings were swapped, this is a permissions change
+        if !&scan_entry.is_readonly.eq(&this_scan.is_readonly) {
+            return true;
+        }
+        // If symlink status has changed, then technically we are looking at a symlink instead of
+        // a file/dir, even if the resulting object of the symlink is the same file.
+        // It's important to fail here before getting to ACLs since ultimately, ACLs in Windows
+        // are a slower comparison. Given a lot of file ACLs are based on inheritance, doing any
+        // symlink is likely to corrupt our permissions.
+        if !&scan_entry.is_sym.eq(&this_scan.is_sym) {
+            return true;
+        }
+        // T
+        if !&scan_entry.mtime.eq(&this_scan.mtime) {
+            return true;
+        }
+        // T
+        if !&scan_entry.ctime.eq(&this_scan.ctime) {
+            return true;
+        }
+
+        // Validate DACLs match
+        if check_acl_modified(&scan_entry.dacl, &this_scan.dacl) {
+            return true;
+        }
+
+        // Validate SACLs match
+        if check_acl_modified(&scan_entry.sacl, &this_scan.sacl) {
+            return true;
+        }
+    }
+    // We've checked all metadata aspects and found no changes for our matching path
+    debug!("File metadata matches");
+    return false;
+}
+
+fn check_acl_modified(old_acl: &WinAcl, new_acl: &WinAcl) -> bool {
+    if old_acl.object_type == new_acl.object_type {
+        // Check counts of acl entries
+        if !old_acl.acl_entries.len().eq(&new_acl.acl_entries.len()) {
+            return true;
+        }
+
+        // For each new entry, check if a matching old entry exists
+        for new_entry in &new_acl.acl_entries {
+            let mut matched_sid = false;
+            for old_entry in &old_acl.acl_entries {
+                // Check if the SIDs match in the ACL entry
+                if !old_entry.acl_sid.eq(&new_entry.acl_sid) {
+                    continue;
+                }
+                matched_sid = true;
+
+                // Check the other ACL details
+                if !old_entry.acl_type.eq(&new_entry.acl_type)
+                    && !old_entry.acl_mask.eq(&new_entry.acl_mask)
+                    && !old_entry.acl_user.eq(&new_entry.acl_user)
+                    && !old_entry.acl_flags.eq(&new_entry.acl_flags)
+                {
+                    return true;
+                }
+                // Only get here if this_scan's entry had a matching old_entry AND if the
+                // ACL details matched.
+                break;
+            }
+            // Double check that we found a match
+            if matched_sid {
+                continue;
+            }
+
+            // No matching entry was found so ACLs may have same count, but at least one old
+            // entry was removed and replaced with a different new entry. This shows that the
+            // modification is true
+            return true;
+        }
+        // We've checked all metadata and had nothing differ. This ACL is unchanged.
+        return false;
+    } else {
+        // Non matching ACL types should automatically fail
+        return true;
+    }
 }

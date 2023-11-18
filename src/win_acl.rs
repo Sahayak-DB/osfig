@@ -1,5 +1,5 @@
 use crate::helpers;
-use log::warn;
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::path::Path;
@@ -27,6 +27,7 @@ pub struct WinAcl {
 
 #[cfg(windows)]
 pub fn get_win_dacls(path: &Path) -> WinAcl {
+    debug!("Collecting DACLs");
     if File::open(&path).is_err() {
         warn!("Cannot open file: {}", path.to_str().unwrap());
         return WinAcl {
@@ -49,6 +50,7 @@ pub fn get_win_dacls(path: &Path) -> WinAcl {
 
 #[cfg(windows)]
 pub fn get_win_sacls(path: &Path) -> WinAcl {
+    debug!("Collecting SACLs");
     if File::open(&path).is_err() {
         warn!("Cannot open file: {}", path.to_str().unwrap());
         return WinAcl {

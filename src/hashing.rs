@@ -42,6 +42,12 @@ pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
             hashes.blake2s = get_blake2s(path);
         }
         info!("Hashing complete");
+    } else {
+        // While I have no intention of supporting directory hashing at this time, I'm curious how
+        // many users would have configurations that would attempt it. Putting this log here just
+        // to potentially collect some insight in case I'm later asked to add dir hashing and I
+        // agree to build it.
+        info!("Hashing attempted on a directory: Unsupported functionality at this time");
     }
 
     hashes

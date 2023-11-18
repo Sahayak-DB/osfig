@@ -1,6 +1,6 @@
 [package]
 name = "osfig"
-version = "0.3.0"
+version = "0.4.0"
 description = "Open Source Forensic Integrity Guard - A simple tool for use in establishing better forensic security controls."
 homepage = "https://github.com/Sahayak-DB/osfig"
 repository = "https://github.com/Sahayak-DB/osfig"
@@ -29,6 +29,7 @@ filetime = "0.2.22"
 serde_json = { version = "1.0.108", features = [] }
 glob = { version = "0.3.1", features = [] }
 serde = { version = "1.0.190", features = ["derive"] }
+prettydiff = "0.6.4"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["fileapi", "winnt", "wincred", "ntsecapi", "winuser"] }

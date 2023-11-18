@@ -72,13 +72,13 @@ fn return_default_config() -> String {
         base: 1
 
 root:
-  level: debug
+  level: info
   appenders:
     - rolling
 
 loggers:
   rolling:
-    level: debug
+    level: info
     appenders:
       - rolling";
     config.to_string()

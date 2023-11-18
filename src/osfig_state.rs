@@ -48,6 +48,7 @@ pub fn print_usage() {
 }
 
 fn print_banner() {
+    // Todo is it possible to detect when a terminal doesn't support color output?
     print!("\n\x1b[0;95m");
     println!("     \x1b[0;95m███████      █████████   ███████████ ██████    ████████");
     println!("    \x1b[0;95m███\x1b[0;94m░░░░░\x1b[0;95m███   ███\x1b[0;94m░░░░░\x1b[0;95m███ \x1b[0;94m░░\x1b[0;95m███\x1b[0;94m░░░░░  ░░\x1b[0;95m███    ███\x1b[0;94m░░░░░\x1b[0;95m███");
@@ -58,6 +59,17 @@ fn print_banner() {
     println!("   \x1b[0;94m░░\x1b[0;95m███████\x1b[0;94m░    ░\x1b[0;95m█████████   █████       ██████  \x1b[0;94m░░\x1b[0;95m████████");
     println!("     \x1b[0;94m░░░░░░░      ░░░░░░░░░   ░░░░░       ░░░░░░    ░░░░░░░░");
     print!("\x1b[0m");
+
+    // print!("\n");
+    // println!("     ███████      █████████   ███████████ ██████    ████████");
+    // println!("    ███░░░░░███   ███░░░░░███ ░░███░░░░░  ░░███    ███░░░░░███");
+    // println!("   ███     ░░███ ░███    ░░░   ░███   █    ░███   ███     ░░░");
+    // println!("  ░███      ░███  ░█████████   ░███████    ░███  ░███");
+    // println!("  ░███      ░███  ░░░░░░░░███  ░███░░░█    ░███  ░███    █████");
+    // println!("  ░░███     ███   ███    ░███  ░███  ░     ░███  ░░███  ░░███");
+    // println!("   ░░███████░    ░█████████   █████       ██████  ░░████████");
+    // println!("     ░░░░░░░      ░░░░░░░░░   ░░░░░       ░░░░░░    ░░░░░░░░");
+    // print!("");
 }
 
 fn get_default_settings() -> OsfigSettings {
@@ -130,10 +142,9 @@ pub fn load_osfig_settings() -> OsfigSettings {
     // If you don't enforce a maximum, someone will use a u16. Nobody needs to pause for 1:05 min
     // between file scans. 10s is more than reasonable--excessive, actually.
     if settings.scan_settings.file_scan_delay > 10000 {
+        warn!("Invalid setting configuration: file_scan_delay: See documentation");
         settings.scan_settings.file_scan_delay = 10000;
     }
-
-    println!("SETTINGS FILE READ: {:?}", settings);
 
     settings
 }
