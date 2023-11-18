@@ -133,7 +133,5 @@ pub fn load_osfig_settings() -> OsfigSettings {
         settings.scan_settings.file_scan_delay = 10000;
     }
 
-    println!("SETTINGS FILE READ: {:?}", settings);
-
     settings
 }

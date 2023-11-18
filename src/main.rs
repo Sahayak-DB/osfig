@@ -48,8 +48,6 @@ fn main() -> std::io::Result<()> {
 }
 
 // Todo Store scans in local db for comparisons
-// Todo Show only changed files in output
-// Todo Show all results in ultra-verbose mode
 // Todo Show contents diffs in verbose mode
 // Todo Set up a build pipeline that automatically addresses versioning
 // Todo Add commandline options
