@@ -4,7 +4,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use filetime::FileTime;
 use glob::{glob, GlobResult};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use prettydiff::diff_lines;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -24,10 +24,10 @@ use {
     is_elevated::is_elevated,
     std::os::windows::fs::MetadataExt,
 };
-
-use crate::scan_settings::FileScanSetting;
 #[cfg(target_os = "linux")]
 use {std::os::unix::fs::MetadataExt, std::os::unix::fs::PermissionsExt};
+
+use crate::scan_settings::FileScanSetting;
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,8 +58,6 @@ pub struct FileScanResult {
 }
 
 fn store_json(results: &Vec<FileScanResult>) {
-    // Testing storage to json file
-    // Todo refactor later for more organized storage of results -- Should this even live here? Plan!
     let results_path = format!(
         "./scans/results-{}.json",
         DateTime::<Utc>::from(SystemTime::now()).timestamp()
@@ -191,18 +189,56 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
                         continue;
                     }
                 }
-                // Todo add a glob based negation pattern and check if path is not in the anti-pattern matches
+                let mut skip_entry = false;
+                for negate_pattern in &file_scan_setting.file_ignore_patterns {
+                    let glob_negate_matches = match glob(negate_pattern) {
+                        Ok(paths) => {
+                            debug!("Valid glob ignore pattern - Checking file results");
+                            paths
+                        }
+                        Err(e) => {
+                            warn!("Invalid Glob Ignore Pattern: Error: {}", e);
+                            glob("").unwrap()
+                        }
+                    };
+                    for negation in glob_negate_matches.into_iter() {
+                        match negation {
+                            Ok(_) => {
+                                if entry.as_ref().unwrap().eq(&negation.unwrap()) {
+                                    skip_entry = true;
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Glob Error: {}", e);
+                                continue;
+                            }
+                        }
+                    }
+                    if skip_entry {
+                        break;
+                    }
+                }
+                // We matched our entry to an expanded ignore glob pattern, so skip to next entry.
+                if skip_entry {
+                    debug!(
+                        "Skipping entry due to Ignore Path configuration: {}",
+                        entry.as_ref().unwrap().to_str().unwrap()
+                    );
+                    continue;
+                }
+
                 results.push(scan_file(&file_scan_setting, &entry, &last_scan_results));
 
                 // This is quick and dirty for testing, but quite effective at reducing CPU and Disk
                 // utilization figures. I may keep it for awhile given the simplicity to implement and
                 // how predictable it is in execution for a less knowledgeable end user. It is, after
                 // all, deterministic, albeit crude.
-                // Todo should this sleep be added to file content reads using a buffered reader too?
-                let ten_millis = time::Duration::from_millis(
+                debug!("Sleeping thread before next scan");
+                let delay_millis = time::Duration::from_millis(
                     u64::from(osfig_settings.scan_settings.file_scan_delay).clone(),
                 );
-                thread::sleep(ten_millis);
+                thread::sleep(delay_millis);
             }
         }
     }
@@ -276,9 +312,13 @@ pub fn scan_file(
     }
 
     // At this point, we have a living result for a path. Collect the associated data.
+    debug!("File path confirmed: Collecting hashes");
     let hashes = hashing::get_all_hashes(&settings.file_hashes, path);
+
+    debug!("Collecting metadata");
     let md = fs::metadata(path).unwrap();
 
+    debug!("Collecting timestamps");
     let file_time = FileTime::from_creation_time(&md);
     #[cfg(windows)]
     let created_time = DateTime::from_timestamp(
@@ -292,6 +332,7 @@ pub fn scan_file(
     let mod_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
 
     // Todo research how to avoid update atime when reading file in Windows
+    trace!("atime not yet implemented");
     // let file_time = FileTime::from_last_access_time(&md);
     // let acc_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
 
@@ -299,6 +340,7 @@ pub fn scan_file(
     let mut utf8_contents: String = "".to_string();
     if path.is_file() {
         if settings.file_content {
+            debug!("Collecting file contents");
             if File::open(path).is_err() {
                 info!("Cannot open file: {:?}", path.to_str());
                 utf8_contents = String::from("Cannot open file");
@@ -342,8 +384,10 @@ pub fn scan_file(
         }
     }
 
-    let scan_path = format!("{:?}", &path.to_str().unwrap());
-    debug!("File scan results complete: {}", scan_path);
+    debug!(
+        "File scan results complete: {}",
+        format!("{:?}", &path.to_str().unwrap())
+    );
 
     // We have our scan data--save into the FileScanResult. Note that I have intentionally placed
     // the scantime value as now() instead of when we first checked the file. It takes only a few
@@ -351,6 +395,7 @@ pub fn scan_file(
     // For compliance/audit purposes, it's valuable to ascertain when the result was stored, not
     // when the scan started. Since results aren't available until the scan is "done", we are
     // using this moment to declare the scan as "done" and store the results with this timestamp.
+    debug!("Creating FileScanresult");
     let mut filescanresult: FileScanResult = FileScanResult {
         scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
         path: Box::new(path.to_path_buf()),
@@ -384,6 +429,7 @@ pub fn scan_file(
     };
 
     // Check if the file was modified and update flag
+    debug!("checking if file is_modified");
     filescanresult.is_modified = check_file_modified(last_scan, &filescanresult);
 
     /*
@@ -410,6 +456,7 @@ pub fn scan_file(
     an addition
     */
     if settings.file_content && filescanresult.is_modified {
+        debug!("File is_modified: Checking content diffs");
         let (content_diff, content_diff_readable) = get_content_diff(&filescanresult, last_scan);
 
         filescanresult.content_diff = content_diff;
@@ -427,7 +474,7 @@ fn get_content_diff(
         if !scan_entry.path.eq(&new_scan.path) {
             continue;
         }
-
+        debug!("Found matching prior scan entry");
         let diff_result = diff_lines(&scan_entry.contents, &new_scan.contents);
         let result = diff_result
             .to_string()
@@ -459,6 +506,7 @@ fn get_content_diff(
         readable_output.pop();
         return (result.to_string(), readable_output);
     }
+    debug!("Found no matching prior scan entry: Returning empty diffs");
     return ("".to_string(), "".to_string());
 }
 
@@ -469,7 +517,6 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
         }
 
         // We should have a matching path now
-
         // Missing files/dirs don't have hashes, so check existence first
         if !&scan_entry.exists.eq(&this_scan.exists) {
             return true;
@@ -485,9 +532,11 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
             || &scan_entry.md5 != "" && this_scan.md5 != "" && !&scan_entry.md5.eq(&this_scan.md5)
         {
             // Results have a different hash. File is modified
+            debug!("File hashes differ: Path is_modified");
             return true;
         }
 
+        debug!("File hashes do not differ: Checking metadata");
         // Hash data is not available for comparison. Check other parameters
         if !&scan_entry.attrs.eq(&this_scan.attrs) {
             return true;
@@ -528,6 +577,7 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
         }
     }
     // We've checked all metadata aspects and found no changes for our matching path
+    debug!("File metadata matches");
     return false;
 }
 
