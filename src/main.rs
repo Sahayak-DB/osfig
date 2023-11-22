@@ -11,6 +11,7 @@ mod scan_settings;
 
 #[cfg(windows)]
 mod registry;
+mod tests;
 #[cfg(windows)]
 mod win_acl;
 

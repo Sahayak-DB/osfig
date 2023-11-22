@@ -57,16 +57,85 @@ pub struct FileScanResult {
     pub(crate) sacl: WinAcl,
 }
 
-fn store_json(results: &Vec<FileScanResult>) {
-    let results_path = format!(
-        "./scans/results-{}.json",
-        DateTime::<Utc>::from(SystemTime::now()).timestamp()
-    );
-    let scans_dir = Path::new(&results_path).parent().unwrap();
+#[cfg(windows)]
+impl Default for FileScanResult {
+    fn default() -> Self {
+        Self {
+            scantime: DateTime::<Utc>::default().to_string(),
+            path: Box::new(PathBuf::from(Path::new(""))),
+            is_dir: false,
+            is_file: false,
+            is_sym: false,
+            is_readonly: false,
+            exists: false,
+            md5: "".to_string(),
+            sha256: "".to_string(),
+            blake2s: "".to_string(),
+            ctime: DateTime::<Utc>::default().to_string(),
+            mtime: DateTime::<Utc>::default().to_string(),
+            atime: DateTime::<Utc>::default().to_string(),
+            size: 0,
+            attrs: 0,
+            contents: "".to_string(),
+            is_modified: false,
+            content_diff: "".to_string(),
+            content_diff_readable: "".to_string(),
+            dacl: WinAcl {
+                object_type: "".to_string(),
+                acl_entries: vec![],
+            },
+            sacl: WinAcl {
+                object_type: "".to_string(),
+                acl_entries: vec![],
+            },
+        }
+    }
+}
+#[cfg(target_os = "linux")]
+impl Default for FileScanResult {
+    fn default() -> Self {
+        Self {
+            scantime: DateTime::<Utc>::default().to_string(),
+            path: Box::new(PathBuf::from(Path::new(""))),
+            is_dir: false,
+            is_file: false,
+            is_sym: false,
+            is_readonly: false,
+            exists: false,
+            md5: "".to_string(),
+            sha256: "".to_string(),
+            blake2s: "".to_string(),
+            ctime: DateTime::<Utc>::default().to_string(),
+            mtime: DateTime::<Utc>::default().to_string(),
+            atime: DateTime::<Utc>::default().to_string(),
+            size: 0,
+            attrs: 0,
+            contents: "".to_string(),
+            is_modified: false,
+            content_diff: "".to_string(),
+            content_diff_readable: "".to_string(),
+        }
+    }
+}
+
+impl FileScanResult {
+    #[allow(unused)]
+    pub(crate) fn set_path_from_str(&mut self, new_path: &str) {
+        self.path = Box::new(PathBuf::from(Path::new(new_path)))
+    }
+    #[allow(unused)]
+    pub(crate) fn set_path_from_path(&mut self, new_path: &Path) {
+        self.path = Box::new(PathBuf::from(new_path))
+    }
+}
+
+pub fn store_json(results: &Vec<FileScanResult>, path: &str) -> Result<(), std::io::Error> {
+    let scans_dir = Path::new(&path).parent().unwrap_or(Path::new("./scans/"));
+
     if !scans_dir.exists() {
         match fs::create_dir_all(scans_dir) {
             Ok(_) => {
-                info!("Created ./scans/ directory")
+                info!("Created directory: {:?}", scans_dir)
             }
             Err(e) => {
                 error!("Cannot create results directory: {}", e)
@@ -74,17 +143,14 @@ fn store_json(results: &Vec<FileScanResult>) {
         };
     }
 
-    let json_file = File::create(&results_path).unwrap();
+    let json_file = File::create(&path)?;
     let file_writer = BufWriter::new(json_file);
     let storage_result = serde_json::to_writer_pretty(file_writer, &results);
-    match storage_result {
-        Ok(_) => {
-            info!("Results saved to file {}", &results_path)
-        }
-        Err(e) => {
-            error!("Error writing JSON: {}", e)
-        }
-    }
+    let save_result = match storage_result {
+        Ok(_) => {}
+        Err(_) => {}
+    };
+    Ok(save_result)
 }
 
 pub fn find_latest_result_file() -> Box<PathBuf> {
@@ -121,7 +187,7 @@ pub fn find_latest_result_file() -> Box<PathBuf> {
     Box::new(newest_path)
 }
 
-fn get_latest_results(_osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
+pub fn get_latest_results(_osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
     let results_path = find_latest_result_file();
     if !results_path.exists() & !results_path.is_file() {
         return Vec::new();
@@ -251,7 +317,20 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
         warn!("Found no file results. Validate scan settings, access/permissions, and errors in the log");
     }
     if results.len() > 0 {
-        store_json(&results);
+        // Todo handle return value and check for errors
+        let save_path = format!(
+            "./scans/results-{}.json",
+            DateTime::<Utc>::from(SystemTime::now()).timestamp()
+        );
+        let save_result = store_json(&results, &save_path);
+        match save_result {
+            Ok(_) => {
+                info!("Results saved to file {}", &save_path)
+            }
+            Err(e) => {
+                error!("Error writing JSON: {}", e)
+            }
+        }
     }
     results
 }
@@ -276,37 +355,8 @@ pub fn scan_file(
     // this time, it's likely to be an ephemeral file and not one we would have wanted results
     // about anyway.
     if !path_result.exists() {
-        let filescanresult: FileScanResult = FileScanResult {
-            scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
-            path: Box::new(PathBuf::from(path)),
-            is_dir: false,
-            is_file: false,
-            is_sym: false,
-            is_readonly: false,
-            exists: false,
-            md5: "".to_string(),
-            sha256: "".to_string(),
-            blake2s: "".to_string(),
-            ctime: DateTime::<Utc>::default().to_string(),
-            mtime: DateTime::<Utc>::default().to_string(),
-            atime: DateTime::<Utc>::default().to_string(),
-            size: 0,
-            attrs: 0,
-            contents: "".to_string(),
-            is_modified: false,
-            content_diff: "".to_string(),
-            content_diff_readable: "".to_string(),
-            #[cfg(windows)]
-            dacl: WinAcl {
-                object_type: "".to_string(),
-                acl_entries: vec![],
-            },
-            #[cfg(windows)]
-            sacl: WinAcl {
-                object_type: "".to_string(),
-                acl_entries: vec![],
-            },
-        };
+        let mut filescanresult: FileScanResult = FileScanResult::default();
+        filescanresult.set_path_from_path(path);
 
         return filescanresult;
     }
@@ -466,7 +516,7 @@ pub fn scan_file(
     filescanresult
 }
 
-fn get_content_diff(
+pub fn get_content_diff(
     new_scan: &FileScanResult,
     old_scan_results: &Vec<FileScanResult>,
 ) -> (String, String) {
@@ -510,7 +560,7 @@ fn get_content_diff(
     return ("".to_string(), "".to_string());
 }
 
-fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResult) -> bool {
+pub fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResult) -> bool {
     for scan_entry in last_scan {
         if &scan_entry.path != &this_scan.path {
             continue;
@@ -581,7 +631,7 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
     return false;
 }
 
-fn check_acl_modified(old_acl: &WinAcl, new_acl: &WinAcl) -> bool {
+pub fn check_acl_modified(old_acl: &WinAcl, new_acl: &WinAcl) -> bool {
     if old_acl.object_type == new_acl.object_type {
         // Check counts of acl entries
         if !old_acl.acl_entries.len().eq(&new_acl.acl_entries.len()) {
