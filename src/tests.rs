@@ -299,12 +299,52 @@ mod file_tests {
 mod hashing_tests {
     use crate::hashing::*;
     use std::any::Any;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::Path;
+
+    fn setup_hash_tests() {
+        teardown_hash_tests();
+        let example_text = String::from("Test text");
+        let mut testfile = File::create("testfile").unwrap();
+        testfile.write_all(example_text.as_bytes());
+        testfile.flush();
+
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    fn teardown_hash_tests() {
+        let files: Vec<&str> = vec!["testfile"];
+
+        for file in files {
+            let _ = std::fs::remove_file(file);
+        }
+
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 
     #[test]
-    fn test_example() {
+    fn test_md5() {
+        setup_hash_tests();
         // Placeholder
-        let expected_type: String = String::from("");
-        assert_eq!(String::from("").type_id(), expected_type.type_id());
+        let expected_value_md5: String = String::from("AAAF7028B8B9C6CE59BD3D1EE80869B3");
+        assert_eq!(get_md5(Path::new("testfile")), expected_value_md5);
+        teardown_hash_tests();
+    }
+    fn test_sha256() {
+        setup_hash_tests();
+        let expected_value_sha256: String =
+            String::from("AB0E2C4143F4F6815306AF9C90BCC21A06CE5A7C8D365AF5EC15D5AA515FDBC1");
+        assert_eq!(get_sha256(Path::new("testfile")), expected_value_sha256);
+        teardown_hash_tests();
+    }
+    fn test_blake2s() {
+        setup_hash_tests();
+        let expected_value_blake2s: String =
+            String::from("C21A3B5FFA9298A9887935B83AF05616BDD7E47CA9A8DF1FDF9D570F8E140320");
+        assert_eq!(get_blake2s(Path::new("testfile")), expected_value_blake2s);
+        teardown_hash_tests();
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -313,13 +353,22 @@ mod hashing_tests {
 #[cfg(test)]
 mod logging_tests {
     use crate::logging::*;
+    use log::info;
     use std::any::Any;
+    use std::path::Path;
 
     #[test]
-    fn test_example() {
-        // Placeholder
-        let expected_type: String = String::from("");
-        assert_eq!(String::from("").type_id(), expected_type.type_id());
+    fn test_logging() {
+        std::fs::remove_file("./config/osfig_log_settings.yml");
+        std::fs::remove_file("./logs/osfig.log");
+        setup_logging();
+        info!("Test");
+
+        if Path::new("./logs/osfig.log").exists() {
+            assert!(true);
+        } else {
+            assert!(false);
+        }
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
