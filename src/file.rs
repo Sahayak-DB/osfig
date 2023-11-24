@@ -176,7 +176,10 @@ pub fn find_latest_result_file() -> Box<PathBuf> {
                 .nanoseconds(),
         );
         #[cfg(target_os = "linux")]
-        let new_time = DateTime::from_timestamp(md.ctime(), 0);
+        let this_match_time = DateTime::from_timestamp(
+            result_match.as_mut().unwrap().metadata().unwrap().ctime(),
+            0,
+        );
 
         if this_match_time > newest_timestamp {
             newest_timestamp = this_match_time;
@@ -369,6 +372,7 @@ pub fn scan_file(
     let md = fs::metadata(path).unwrap();
 
     debug!("Collecting timestamps");
+    #[cfg(windows)]
     let file_time = FileTime::from_creation_time(&md);
     #[cfg(windows)]
     let created_time = DateTime::from_timestamp(
@@ -617,11 +621,13 @@ pub fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScan
         }
 
         // Validate DACLs match
+        #[cfg(windows)]
         if check_acl_modified(&scan_entry.dacl, &this_scan.dacl) {
             return true;
         }
 
         // Validate SACLs match
+        #[cfg(windows)]
         if check_acl_modified(&scan_entry.sacl, &this_scan.sacl) {
             return true;
         }
@@ -631,6 +637,7 @@ pub fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScan
     return false;
 }
 
+#[cfg(windows)]
 pub fn check_acl_modified(old_acl: &WinAcl, new_acl: &WinAcl) -> bool {
     if old_acl.object_type == new_acl.object_type {
         // Check counts of acl entries

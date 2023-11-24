@@ -55,6 +55,7 @@ mod file_tests {
     use crate::file::*;
     use crate::osfig_state::OsfigSettings;
     use crate::scan_settings::{FileScanSetting, ScanSettings};
+    #[cfg(windows)]
     use crate::win_acl::{WinAcl, WinaclEntry};
     use std::any::Any;
     use std::fs::File;
@@ -182,13 +183,15 @@ mod file_tests {
         };
         #[cfg(target_os = "linux")]
         let filescansetting = FileScanSetting {
-            file_patterns: vec!["testfile*"],
-            file_ignore_patterns: vec!["testfile2"],
+            file_patterns: vec!["testfile*".to_string()],
+            file_ignore_patterns: vec!["testfile2".to_string()],
             file_hashes: crate::scan_settings::FileHashes {
                 md5: true,
                 sha256: true,
                 blake2s: true,
             },
+            file_dacl: false,
+            file_sacl: false,
             file_content: false,
         };
 
@@ -223,8 +226,8 @@ mod file_tests {
         assert_eq!(expected_value0.exists, true);
         assert_eq!(expected_value0.path, Box::new(PathBuf::from("testfile1")));
         assert_eq!(expected_value0.is_modified, false);
-        assert!(expected_value0.ctime.len() >= 30 && expected_value0.ctime.len() <= 33);
-        assert!(expected_value0.mtime.len() >= 30 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.ctime.len() >= 23 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.mtime.len() >= 23 && expected_value0.ctime.len() <= 33);
         assert_eq!(expected_value0.is_sym, false);
         assert_eq!(expected_value0.is_dir, false);
         assert_eq!(expected_value0.is_readonly, false);
@@ -262,8 +265,8 @@ mod file_tests {
         assert_eq!(expected_value0.exists, true);
         assert_eq!(expected_value0.path, Box::new(PathBuf::from("testfile1")));
         assert_eq!(expected_value0.is_modified, true);
-        assert!(expected_value0.ctime.len() >= 30 && expected_value0.ctime.len() <= 33);
-        assert!(expected_value0.mtime.len() >= 30 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.ctime.len() >= 23 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.mtime.len() >= 23 && expected_value0.ctime.len() <= 33);
         assert_eq!(expected_value0.is_sym, false);
         assert_eq!(expected_value0.is_dir, false);
         assert_eq!(expected_value0.is_readonly, true);
@@ -339,8 +342,10 @@ mod osfig_state_tests {
 //////////////////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod registry_tests {
-    use crate::registry::*;
     use std::any::Any;
+
+    #[cfg(windows)]
+    use crate::registry::*;
 
     #[test]
     fn test_example() {
@@ -369,8 +374,10 @@ mod scan_settings_tests {
 //////////////////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod win_acl_tests {
-    use crate::win_acl::*;
     use std::any::Any;
+
+    #[cfg(windows)]
+    use crate::win_acl::*;
 
     #[test]
     fn test_example() {
