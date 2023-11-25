@@ -244,11 +244,11 @@ mod file_tests {
 
         // Recreating the file will cause the timestamps to be altered, so our next scan is
         // for a modified file. Also change to RO file.
-        std::fs::remove_file("testfile1");
+        let _ = std::fs::remove_file("testfile1");
         let test_file = File::create("testfile1");
         let mut test_file_perms = test_file.unwrap().metadata().unwrap().permissions();
         test_file_perms.set_readonly(true);
-        std::fs::set_permissions("testfile1", test_file_perms);
+        let _ = std::fs::set_permissions("testfile1", test_file_perms);
 
         let expected_value = scan_files(&osfig_settings);
 
@@ -284,7 +284,7 @@ mod file_tests {
         let test_file = File::open("testfile1");
         let mut test_file_perms = test_file.unwrap().metadata().unwrap().permissions();
         test_file_perms.set_readonly(false);
-        std::fs::set_permissions("testfile1", test_file_perms);
+        let _ = std::fs::set_permissions("testfile1", test_file_perms);
         teardown_file_tests();
     }
     #[test]
@@ -298,7 +298,6 @@ mod file_tests {
 #[cfg(test)]
 mod hashing_tests {
     use crate::hashing::*;
-    use std::any::Any;
     use std::fs::File;
     use std::io::Write;
     use std::path::Path;
@@ -307,8 +306,8 @@ mod hashing_tests {
         teardown_hash_tests();
         let example_text = String::from("Test text");
         let mut testfile = File::create("testfile").unwrap();
-        testfile.write_all(example_text.as_bytes());
-        testfile.flush();
+        let _ = testfile.write_all(example_text.as_bytes());
+        let _ = testfile.flush();
 
         // Tests run too fast on some systems causing intermittent failures.
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -332,6 +331,7 @@ mod hashing_tests {
         assert_eq!(get_md5(Path::new("testfile")), expected_value_md5);
         teardown_hash_tests();
     }
+    #[test]
     fn test_sha256() {
         setup_hash_tests();
         let expected_value_sha256: String =
@@ -339,6 +339,7 @@ mod hashing_tests {
         assert_eq!(get_sha256(Path::new("testfile")), expected_value_sha256);
         teardown_hash_tests();
     }
+    #[test]
     fn test_blake2s() {
         setup_hash_tests();
         let expected_value_blake2s: String =
@@ -359,8 +360,8 @@ mod logging_tests {
 
     #[test]
     fn test_logging() {
-        std::fs::remove_file("./config/osfig_log_settings.yml");
-        std::fs::remove_file("./logs/osfig.log");
+        let _ = std::fs::remove_file("./config/osfig_log_settings.yml");
+        let _ = std::fs::remove_file("./logs/osfig.log");
         setup_logging();
         info!("Test");
 
@@ -370,6 +371,12 @@ mod logging_tests {
             assert!(false);
         }
     }
+
+    #[test]
+    fn test_default_config() {
+        let expected_type = return_default_config();
+        assert_eq!(expected_type.type_id(), String::new().type_id());
+    }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////     OSFIG_STATE    ///////////////////////////////////////
@@ -377,19 +384,98 @@ mod logging_tests {
 #[cfg(test)]
 mod osfig_state_tests {
     use crate::osfig_state::*;
+    use crate::scan_settings::{FileScanSetting, ScanSettings};
     use std::any::Any;
 
+    fn setup_settings_tests() {
+        teardown_settings_tests();
+
+        // This will trigger creation of a default settings file
+        load_osfig_settings();
+
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    fn teardown_settings_tests() {
+        let files: Vec<&str> = vec!["./config/osfig_settings.json"];
+
+        for file in files {
+            let _ = std::fs::remove_file(file);
+        }
+
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
     #[test]
-    fn test_example() {
-        // Placeholder
-        let expected_type: String = String::from("");
-        assert_eq!(String::from("").type_id(), expected_type.type_id());
+    fn test_default_settings() {
+        setup_settings_tests();
+        let expected_value = load_osfig_settings();
+
+        assert_eq!(
+            expected_value.type_id(),
+            OsfigSettings {
+                scan_settings: ScanSettings {
+                    scan_files: false,
+                    file_scan_settings: vec![],
+                    file_scan_delay: 0,
+                    scan_registry: false,
+                    registry_patterns: vec![],
+                }
+            }
+            .type_id()
+        );
+
+        teardown_settings_tests();
+    }
+
+    #[test]
+    fn test_load_settings() {
+        setup_settings_tests();
+        let expected_value = load_osfig_settings();
+
+        assert_eq!(expected_value.scan_settings.file_scan_delay, 0);
+        assert_eq!(
+            expected_value.scan_settings.file_scan_settings.type_id(),
+            Vec::<FileScanSetting>::new().type_id()
+        );
+        assert_eq!(
+            expected_value.scan_settings.registry_patterns.type_id(),
+            Vec::<String>::new().type_id()
+        );
+        assert_eq!(expected_value.scan_settings.scan_files, true);
+        assert_eq!(expected_value.scan_settings.scan_registry, true);
+
+        teardown_settings_tests();
+    }
+
+    #[test]
+    fn test_save_settings() {
+        setup_settings_tests();
+        let expected_value = load_osfig_settings();
+
+        assert_eq!(
+            expected_value.type_id(),
+            OsfigSettings {
+                scan_settings: ScanSettings {
+                    scan_files: false,
+                    file_scan_settings: vec![],
+                    file_scan_delay: 0,
+                    scan_registry: false,
+                    registry_patterns: vec![],
+                }
+            }
+            .type_id()
+        );
+
+        teardown_settings_tests();
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////      REGISTRY      ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
+#[cfg(windows)]
 mod registry_tests {
     use std::any::Any;
 
