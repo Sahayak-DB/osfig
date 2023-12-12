@@ -156,7 +156,7 @@ pub fn store_json(results: &Vec<FileScanResult>, path: &str) -> Result<(), std::
 pub fn find_latest_result_file() -> Box<PathBuf> {
     let result_matches = glob("./scans/*").unwrap();
     let mut newest_path = PathBuf::new();
-    let mut newest_timestamp = DateTime::<Utc>::from_timestamp(0 as i64, 0 as u32);
+    let mut newest_timestamp = DateTime::<Utc>::from_timestamp(0i64, 0u32);
 
     for mut result_match in result_matches {
         if !result_match.as_mut().unwrap().exists() {

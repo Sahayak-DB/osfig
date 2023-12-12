@@ -47,7 +47,7 @@ pub fn setup_logging() {
     }
 }
 
-fn return_default_config() -> String {
+pub(crate) fn return_default_config() -> String {
     // This is a template for the default config file. Doing this makes it convenient to establish
     // a replacement file, but creates a release headache by requiring edits in two places. I'll
     // live with it though. Users are going to user, so might as well cater to their needs.

@@ -23,7 +23,7 @@ fn main() -> std::io::Result<()> {
     );
     info!("Logging setup completed");
     info!("Initializing OSFIG v{}", env!("CARGO_PKG_VERSION"));
-    crate::osfig_state::print_usage();
+    osfig_state::print_usage();
     info!("Current Running User: {}", get_cur_username());
 
     // Todo implement args

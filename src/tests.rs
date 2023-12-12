@@ -73,7 +73,7 @@ mod file_tests {
                 }
             };
         }
-        let files: Vec<&str> = vec!["testfile1", "testfile2"];
+        let files: Vec<&str> = vec!["./testfile1", "./testfile2"];
         for file in files {
             let _ = match File::create(file) {
                 Ok(_) => {
@@ -85,10 +85,15 @@ mod file_tests {
             };
         }
         // Tests run too fast on some systems causing intermittent failures.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
     fn teardown_file_tests() {
-        let files: Vec<&str> = vec!["testfile1", "testfile2", "tests_result.json", "tests.json"];
+        let files: Vec<&str> = vec![
+            "./testfile1",
+            "./testfile2",
+            "tests_result.json",
+            "tests.json",
+        ];
         let dirs: Vec<&str> = vec!["./scans"];
 
         for file in files {
@@ -99,7 +104,7 @@ mod file_tests {
             let _ = std::fs::remove_dir_all(dir);
         }
         // Tests run too fast on some systems causing intermittent failures.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
 
     #[test]
@@ -169,8 +174,8 @@ mod file_tests {
 
         #[cfg(windows)]
         let filescansetting = FileScanSetting {
-            file_patterns: vec!["testfile*".to_string()],
-            file_ignore_patterns: vec!["testfile2".to_string()],
+            file_patterns: vec!["./testfile*".to_string()],
+            file_ignore_patterns: vec!["./testfile2".to_string()],
             file_hashes: crate::scan_settings::FileHashes {
                 md5: true,
                 sha256: true,
@@ -182,8 +187,8 @@ mod file_tests {
         };
         #[cfg(target_os = "linux")]
         let filescansetting = FileScanSetting {
-            file_patterns: vec!["testfile*"],
-            file_ignore_patterns: vec!["testfile2"],
+            file_patterns: vec!["./testfile*"],
+            file_ignore_patterns: vec!["./testfile2"],
             file_hashes: crate::scan_settings::FileHashes {
                 md5: true,
                 sha256: true,
@@ -208,6 +213,9 @@ mod file_tests {
             expected_value.type_id(),
             vec![FileScanResult::default()].type_id()
         );
+        // Todo check on linux again to see why this needed to be _eq to 1 but Win likes 0
+        // Was finding on Windows only testfile1 was being scanned and was included in Vec result
+        // Nope, found it... timing again on setup/teardown. Desktop is too fast. Need to refactor.
         assert_eq!(expected_value.len(), 1);
 
         let json_file = File::create("tests_result.json").unwrap();
@@ -241,11 +249,11 @@ mod file_tests {
 
         // Recreating the file will cause the timestamps to be altered, so our next scan is
         // for a modified file. Also change to RO file.
-        std::fs::remove_file("testfile1");
-        let test_file = File::create("testfile1");
+        std::fs::remove_file("./testfile1").unwrap();
+        let test_file = File::create("./testfile1");
         let mut test_file_perms = test_file.unwrap().metadata().unwrap().permissions();
         test_file_perms.set_readonly(true);
-        std::fs::set_permissions("testfile1", test_file_perms);
+        std::fs::set_permissions("./testfile1", test_file_perms).unwrap();
 
         let expected_value = scan_files(&osfig_settings);
 
@@ -278,16 +286,20 @@ mod file_tests {
             .type_id()
         );
 
-        let test_file = File::open("testfile1");
+        let test_file = File::open("./testfile1");
         let mut test_file_perms = test_file.unwrap().metadata().unwrap().permissions();
         test_file_perms.set_readonly(false);
-        std::fs::set_permissions("testfile1", test_file_perms);
+        std::fs::set_permissions("./testfile1", test_file_perms).unwrap();
         teardown_file_tests();
     }
     #[test]
-    fn test_get_content_diff() {}
+    fn test_get_content_diff() {
+        //Todo after refactoring settings file to include results path
+    }
     #[test]
-    fn test_check_acl_modified() {}
+    fn test_check_acl_modified() {
+        //Todo after refactoring settings file to include results path
+    }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////       HASHING      ///////////////////////////////////////
@@ -295,13 +307,134 @@ mod file_tests {
 #[cfg(test)]
 mod hashing_tests {
     use crate::hashing::*;
+    use crate::scan_settings::FileHashes;
     use std::any::Any;
+    use std::fs::File;
+    use std::io::Write;
+
+    fn setup_hash_tests() {
+        teardown_hash_tests();
+        let dirs: Vec<&str> = vec!["./scans"];
+        for dir in dirs {
+            let _ = match std::fs::create_dir_all(dir) {
+                Ok(_) => {
+                    assert!(true)
+                }
+                Err(_) => {
+                    assert!(false)
+                }
+            };
+        }
+        let files: Vec<&str> = vec!["./testfile1"];
+        for file in files {
+            let _ = match File::create(file) {
+                Ok(mut file) => {
+                    file.write_all("test contents".as_bytes()).unwrap();
+                    assert!(true)
+                }
+                Err(_) => {
+                    assert!(false)
+                }
+            };
+        }
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    fn teardown_hash_tests() {
+        let files: Vec<&str> = vec!["./testfile1"];
+        let dirs: Vec<&str> = vec!["./scans"];
+
+        for file in files {
+            let _ = std::fs::remove_file(file);
+        }
+
+        for dir in dirs {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 
     #[test]
-    fn test_example() {
-        // Placeholder
-        let expected_type: String = String::from("");
-        assert_eq!(String::from("").type_id(), expected_type.type_id());
+    fn test_hashes() {
+        setup_hash_tests();
+
+        // Check known hashes for all types
+        let expected_hashes: HashValues = HashValues {
+            md5: "DF14E44B311152C34358A675AE34AFE0".to_string(),
+            sha256: "94C4018D2DCF3327223159659ED0B4BC14461CF394FE1E180E2B5D663938743D".to_string(),
+            blake2s: "949036896470B5D6B5D95AF134C2A6A97D0C8F36FCD4E6CB38FA3F04114F0662".to_string(),
+        };
+
+        let hash_results = get_all_hashes(
+            &FileHashes {
+                md5: true,
+                sha256: true,
+                blake2s: true,
+            },
+            "./testfile1".as_ref(),
+        );
+
+        assert_eq!(hash_results.type_id(), expected_hashes.type_id());
+        assert_eq!(expected_hashes.md5, hash_results.md5);
+        assert_eq!(expected_hashes.sha256, hash_results.sha256);
+        assert_eq!(expected_hashes.blake2s, hash_results.blake2s);
+
+        // Validate config allows not grabbing some hashes
+        // Honestly if you want to know why these tests are here, look at the hashing.rs file
+        // that was updated in this same commit. Tests are your friend... but apparently I'm not
+        let expected_hashes: HashValues = HashValues {
+            md5: "DF14E44B311152C34358A675AE34AFE0".to_string(),
+            sha256: "".to_string(),
+            blake2s: "".to_string(),
+        };
+        let hash_results = get_all_hashes(
+            &FileHashes {
+                md5: true,
+                sha256: false,
+                blake2s: false,
+            },
+            "./testfile1".as_ref(),
+        );
+        assert_eq!(expected_hashes.md5, hash_results.md5);
+        assert_eq!(expected_hashes.sha256, hash_results.sha256);
+        assert_eq!(expected_hashes.blake2s, hash_results.blake2s);
+
+        let expected_hashes: HashValues = HashValues {
+            md5: "".to_string(),
+            sha256: "94C4018D2DCF3327223159659ED0B4BC14461CF394FE1E180E2B5D663938743D".to_string(),
+            blake2s: "".to_string(),
+        };
+        let hash_results = get_all_hashes(
+            &FileHashes {
+                md5: false,
+                sha256: true,
+                blake2s: false,
+            },
+            "./testfile1".as_ref(),
+        );
+        assert_eq!(expected_hashes.md5, hash_results.md5);
+        assert_eq!(expected_hashes.sha256, hash_results.sha256);
+        assert_eq!(expected_hashes.blake2s, hash_results.blake2s);
+
+        let expected_hashes: HashValues = HashValues {
+            md5: "".to_string(),
+            sha256: "".to_string(),
+            blake2s: "949036896470B5D6B5D95AF134C2A6A97D0C8F36FCD4E6CB38FA3F04114F0662".to_string(),
+        };
+        let hash_results = get_all_hashes(
+            &FileHashes {
+                md5: false,
+                sha256: false,
+                blake2s: true,
+            },
+            "./testfile1".as_ref(),
+        );
+        assert_eq!(expected_hashes.md5, hash_results.md5);
+        assert_eq!(expected_hashes.sha256, hash_results.sha256);
+        assert_eq!(expected_hashes.blake2s, hash_results.blake2s);
+
+        teardown_hash_tests();
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -310,13 +443,45 @@ mod hashing_tests {
 #[cfg(test)]
 mod logging_tests {
     use crate::logging::*;
-    use std::any::Any;
+    use std::fs::File;
+    use std::io::Read;
+
+    fn setup_logging_tests() {
+        teardown_logging_tests();
+        setup_logging();
+    }
+
+    fn teardown_logging_tests() {
+        let files: Vec<&str> = vec!["./config/osfig_log_settings.yml"];
+        let dirs: Vec<&str> = vec![];
+
+        for file in files {
+            let _ = std::fs::remove_file(file);
+        }
+
+        for dir in dirs {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 
     #[test]
     fn test_example() {
-        // Placeholder
+        teardown_logging_tests();
+
+        setup_logging();
+        std::thread::sleep(std::time::Duration::from_millis(150));
+
+        let log_config_file = File::open("./config/osfig_log_settings.yml");
+        let mut log_contents = Vec::new();
+        log_config_file
+            .unwrap()
+            .read_to_end(&mut log_contents)
+            .unwrap();
+
         let expected_type: String = String::from("");
-        assert_eq!(String::from("").type_id(), expected_type.type_id());
+        assert_eq!(return_default_config().into_bytes(), log_contents);
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////

@@ -35,7 +35,7 @@ pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
         if hash_values.md5 {
             hashes.md5 = get_md5(path);
         }
-        if hash_values.md5 {
+        if hash_values.sha256 {
             hashes.sha256 = get_sha256(path);
         }
         if hash_values.blake2s {
