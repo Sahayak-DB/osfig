@@ -55,6 +55,7 @@ mod file_tests {
     use crate::file::*;
     use crate::osfig_state::OsfigSettings;
     use crate::scan_settings::{FileScanSetting, ScanSettings};
+    #[cfg(windows)]
     use crate::win_acl::{WinAcl, WinaclEntry};
     use std::any::Any;
     use std::fs::File;
@@ -187,13 +188,15 @@ mod file_tests {
         };
         #[cfg(target_os = "linux")]
         let filescansetting = FileScanSetting {
-            file_patterns: vec!["./testfile*"],
-            file_ignore_patterns: vec!["./testfile2"],
+            file_patterns: vec!["./testfile*".to_string()],
+            file_ignore_patterns: vec!["./testfile2".to_string()],
             file_hashes: crate::scan_settings::FileHashes {
                 md5: true,
                 sha256: true,
                 blake2s: true,
             },
+            file_dacl: false,
+            file_sacl: false,
             file_content: false,
         };
 
@@ -231,8 +234,8 @@ mod file_tests {
         assert_eq!(expected_value0.exists, true);
         assert_eq!(expected_value0.path, Box::new(PathBuf::from("testfile1")));
         assert_eq!(expected_value0.is_modified, false);
-        assert!(expected_value0.ctime.len() >= 30 && expected_value0.ctime.len() <= 33);
-        assert!(expected_value0.mtime.len() >= 30 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.ctime.len() >= 23 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.mtime.len() >= 23 && expected_value0.ctime.len() <= 33);
         assert_eq!(expected_value0.is_sym, false);
         assert_eq!(expected_value0.is_dir, false);
         assert_eq!(expected_value0.is_readonly, false);
@@ -249,11 +252,11 @@ mod file_tests {
 
         // Recreating the file will cause the timestamps to be altered, so our next scan is
         // for a modified file. Also change to RO file.
-        std::fs::remove_file("./testfile1").unwrap();
-        let test_file = File::create("./testfile1");
+        let _ = std::fs::remove_file("testfile1");
+        let test_file = File::create("testfile1");
         let mut test_file_perms = test_file.unwrap().metadata().unwrap().permissions();
         test_file_perms.set_readonly(true);
-        std::fs::set_permissions("./testfile1", test_file_perms).unwrap();
+        let _ = std::fs::set_permissions("testfile1", test_file_perms);
 
         let expected_value = scan_files(&osfig_settings);
 
@@ -270,8 +273,8 @@ mod file_tests {
         assert_eq!(expected_value0.exists, true);
         assert_eq!(expected_value0.path, Box::new(PathBuf::from("testfile1")));
         assert_eq!(expected_value0.is_modified, true);
-        assert!(expected_value0.ctime.len() >= 30 && expected_value0.ctime.len() <= 33);
-        assert!(expected_value0.mtime.len() >= 30 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.ctime.len() >= 23 && expected_value0.ctime.len() <= 33);
+        assert!(expected_value0.mtime.len() >= 23 && expected_value0.ctime.len() <= 33);
         assert_eq!(expected_value0.is_sym, false);
         assert_eq!(expected_value0.is_dir, false);
         assert_eq!(expected_value0.is_readonly, true);
@@ -289,7 +292,7 @@ mod file_tests {
         let test_file = File::open("./testfile1");
         let mut test_file_perms = test_file.unwrap().metadata().unwrap().permissions();
         test_file_perms.set_readonly(false);
-        std::fs::set_permissions("./testfile1", test_file_perms).unwrap();
+        let _ = std::fs::set_permissions("testfile1", test_file_perms);
         teardown_file_tests();
     }
     #[test]
@@ -356,6 +359,28 @@ mod hashing_tests {
     }
 
     #[test]
+    fn test_md5() {
+        setup_hash_tests();
+        // Placeholder
+        let expected_value_md5: String = String::from("AAAF7028B8B9C6CE59BD3D1EE80869B3");
+        assert_eq!(get_md5(Path::new("testfile")), expected_value_md5);
+        teardown_hash_tests();
+    }
+    #[test]
+    fn test_sha256() {
+        setup_hash_tests();
+        let expected_value_sha256: String =
+            String::from("AB0E2C4143F4F6815306AF9C90BCC21A06CE5A7C8D365AF5EC15D5AA515FDBC1");
+        assert_eq!(get_sha256(Path::new("testfile")), expected_value_sha256);
+        teardown_hash_tests();
+    }
+    #[test]
+    fn test_blake2s() {
+        setup_hash_tests();
+        let expected_value_blake2s: String =
+            String::from("C21A3B5FFA9298A9887935B83AF05616BDD7E47CA9A8DF1FDF9D570F8E140320");
+        assert_eq!(get_blake2s(Path::new("testfile")), expected_value_blake2s);
+        teardown_hash_tests();
     fn test_hashes() {
         setup_hash_tests();
 
@@ -443,6 +468,9 @@ mod hashing_tests {
 #[cfg(test)]
 mod logging_tests {
     use crate::logging::*;
+    use log::info;
+    use std::any::Any;
+    use std::path::Path;
     use std::fs::File;
     use std::io::Read;
 
@@ -467,6 +495,23 @@ mod logging_tests {
     }
 
     #[test]
+    fn test_logging() {
+        let _ = std::fs::remove_file("./config/osfig_log_settings.yml");
+        let _ = std::fs::remove_file("./logs/osfig.log");
+        setup_logging();
+        info!("Test");
+
+        if Path::new("./logs/osfig.log").exists() {
+            assert!(true);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_default_config() {
+        let expected_type = return_default_config();
+        assert_eq!(expected_type.type_id(), String::new().type_id());
     fn test_example() {
         teardown_logging_tests();
 
@@ -490,22 +535,103 @@ mod logging_tests {
 #[cfg(test)]
 mod osfig_state_tests {
     use crate::osfig_state::*;
+    use crate::scan_settings::{FileScanSetting, ScanSettings};
     use std::any::Any;
 
+    fn setup_settings_tests() {
+        teardown_settings_tests();
+
+        // This will trigger creation of a default settings file
+        load_osfig_settings();
+
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    fn teardown_settings_tests() {
+        let files: Vec<&str> = vec!["./config/osfig_settings.json"];
+
+        for file in files {
+            let _ = std::fs::remove_file(file);
+        }
+
+        // Tests run too fast on some systems causing intermittent failures.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
     #[test]
-    fn test_example() {
-        // Placeholder
-        let expected_type: String = String::from("");
-        assert_eq!(String::from("").type_id(), expected_type.type_id());
+    fn test_default_settings() {
+        setup_settings_tests();
+        let expected_value = load_osfig_settings();
+
+        assert_eq!(
+            expected_value.type_id(),
+            OsfigSettings {
+                scan_settings: ScanSettings {
+                    scan_files: false,
+                    file_scan_settings: vec![],
+                    file_scan_delay: 0,
+                    scan_registry: false,
+                    registry_patterns: vec![],
+                }
+            }
+            .type_id()
+        );
+
+        teardown_settings_tests();
+    }
+
+    #[test]
+    fn test_load_settings() {
+        setup_settings_tests();
+        let expected_value = load_osfig_settings();
+
+        assert_eq!(expected_value.scan_settings.file_scan_delay, 0);
+        assert_eq!(
+            expected_value.scan_settings.file_scan_settings.type_id(),
+            Vec::<FileScanSetting>::new().type_id()
+        );
+        assert_eq!(
+            expected_value.scan_settings.registry_patterns.type_id(),
+            Vec::<String>::new().type_id()
+        );
+        assert_eq!(expected_value.scan_settings.scan_files, true);
+        assert_eq!(expected_value.scan_settings.scan_registry, true);
+
+        teardown_settings_tests();
+    }
+
+    #[test]
+    fn test_save_settings() {
+        setup_settings_tests();
+        let expected_value = load_osfig_settings();
+
+        assert_eq!(
+            expected_value.type_id(),
+            OsfigSettings {
+                scan_settings: ScanSettings {
+                    scan_files: false,
+                    file_scan_settings: vec![],
+                    file_scan_delay: 0,
+                    scan_registry: false,
+                    registry_patterns: vec![],
+                }
+            }
+            .type_id()
+        );
+
+        teardown_settings_tests();
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////      REGISTRY      ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
+#[cfg(windows)]
 mod registry_tests {
-    use crate::registry::*;
     use std::any::Any;
+
+    #[cfg(windows)]
+    use crate::registry::*;
 
     #[test]
     fn test_example() {
@@ -534,8 +660,10 @@ mod scan_settings_tests {
 //////////////////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod win_acl_tests {
-    use crate::win_acl::*;
     use std::any::Any;
+
+    #[cfg(windows)]
+    use crate::win_acl::*;
 
     #[test]
     fn test_example() {

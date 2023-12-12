@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use std::fs;
 use std::fs::File;
-use std::io::{BufWriter, Read};
+use std::io::{BufWriter, Read, Write};
 use std::path::Path;
 use std::process::exit;
 
@@ -93,10 +93,13 @@ pub fn save_osfig_settings(settings: OsfigSettings) {
                 error!("Cannot create config directory: {}", e)
             }
         };
+        // Pause briefly to give the file system a moment to catch up
+        // This fixes the intermittent testing errors on some systems
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
 
-    let json_file = File::create(&path).unwrap();
-    let file_writer = BufWriter::new(json_file);
+    let mut json_file = File::create(&path).unwrap();
+    let file_writer = BufWriter::new(&json_file);
     let storage_result = serde_json::to_writer_pretty(file_writer, &settings);
     match storage_result {
         Ok(_) => {
@@ -106,6 +109,10 @@ pub fn save_osfig_settings(settings: OsfigSettings) {
             error!("Error writing JSON: {}", e)
         }
     }
+    let _ = json_file.flush();
+    // Pause briefly to give the file system a moment to catch up
+    // This fixes the intermittent testing errors on some systems
+    std::thread::sleep(std::time::Duration::from_millis(50));
 }
 
 pub fn load_osfig_settings() -> OsfigSettings {
@@ -126,7 +133,12 @@ pub fn load_osfig_settings() -> OsfigSettings {
     }
 
     // Load config
-    let mut settings_file = File::open(path).expect("Cannot open file");
+    let mut settings_file = match File::open(path) {
+        Ok(file) => file,
+        Err(_) => {
+            panic!("Cannot open settings file.")
+        }
+    };
 
     let mut data: String = "".to_string();
     match settings_file.read_to_string(&mut data) {
