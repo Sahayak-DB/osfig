@@ -114,10 +114,10 @@ mod file_tests {
         // Validate the windows specific values types have not been modified in the win_acl crate.
         let expected_value: FileScanResult = FileScanResult::default();
 
-        assert_eq!(expected_value.dacl.object_type, "".to_string());
+        assert_eq!(expected_value.discretionary_acl.object_type, "".to_string());
 
         assert_eq!(
-            expected_value.sacl.acl_entries.type_id(),
+            expected_value.system_acl.acl_entries.type_id(),
             Vec::<WinaclEntry>::new().type_id()
         );
     }
@@ -129,7 +129,7 @@ mod file_tests {
 
         assert_eq!(expected_value.path, Box::new(PathBuf::from(Path::new(""))));
 
-        expected_value.set_path_from_str("./Test/");
+        expected_value.set_path("./Test/");
         assert_eq!(
             expected_value.path,
             Box::new(PathBuf::from(Path::new("./Test/")))
@@ -234,15 +234,19 @@ mod file_tests {
         assert_eq!(expected_value0.exists, true);
         assert_eq!(expected_value0.path, Box::new(PathBuf::from("testfile1")));
         assert_eq!(expected_value0.is_modified, false);
-        assert!(expected_value0.ctime.len() >= 23 && expected_value0.ctime.len() <= 33);
-        assert!(expected_value0.mtime.len() >= 23 && expected_value0.ctime.len() <= 33);
-        assert_eq!(expected_value0.is_sym, false);
+        assert!(
+            expected_value0.creation_time.len() >= 23 && expected_value0.creation_time.len() <= 33
+        );
+        assert!(
+            expected_value0.modified_time.len() >= 23 && expected_value0.modified_time.len() <= 33
+        );
+        assert_eq!(expected_value0.is_symbolic_link, false);
         assert_eq!(expected_value0.is_dir, false);
         assert_eq!(expected_value0.is_readonly, false);
         assert_eq!(expected_value0.size, 0);
         #[cfg(windows)]
         assert_eq!(
-            expected_value0.dacl.type_id(),
+            expected_value0.discretionary_acl.type_id(),
             WinAcl {
                 object_type: "".to_string(),
                 acl_entries: vec![]
@@ -273,15 +277,19 @@ mod file_tests {
         assert_eq!(expected_value0.exists, true);
         assert_eq!(expected_value0.path, Box::new(PathBuf::from("testfile1")));
         assert_eq!(expected_value0.is_modified, true);
-        assert!(expected_value0.ctime.len() >= 23 && expected_value0.ctime.len() <= 33);
-        assert!(expected_value0.mtime.len() >= 23 && expected_value0.ctime.len() <= 33);
-        assert_eq!(expected_value0.is_sym, false);
+        assert!(
+            expected_value0.creation_time.len() >= 23 && expected_value0.creation_time.len() <= 33
+        );
+        assert!(
+            expected_value0.modified_time.len() >= 23 && expected_value0.modified_time.len() <= 33
+        );
+        assert_eq!(expected_value0.is_symbolic_link, false);
         assert_eq!(expected_value0.is_dir, false);
         assert_eq!(expected_value0.is_readonly, true);
         assert_eq!(expected_value0.size, 0);
         #[cfg(windows)]
         assert_eq!(
-            expected_value0.dacl.type_id(),
+            expected_value0.discretionary_acl.type_id(),
             WinAcl {
                 object_type: "".to_string(),
                 acl_entries: vec![]

@@ -12,6 +12,13 @@ Common mistakes include:
 * Saving the file in an encoding other than UTF-8
 * Saving the file with a Byte Order Mark (BOM)
 
+### scan_result_path
+This setting dictates the file system path where results files will be saved.
+* Allowed values: Any glob compliant path terminating in a directory name.
+* Formatting: Must be glob compliant and should result in matching a single directory location, ending in a path delimeter.
+* Example: "./scans/" but not "./scans" and not "./scans/*"
+
+
 ### scan_files
 This setting enables or disables scanning of files. All file scanning settings depend upon this being set to true.
 * Allowed values: true, false,

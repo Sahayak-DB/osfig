@@ -7,11 +7,17 @@ use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::Path;
 use std::process::exit;
+use std::string::ToString;
+
+// Settings defaults
+const MAX_FILE_SCAN_DELAY: u16 = 10000;
+const DEFAULT_SCANS_SAVE_PATH: &'static str = "./scans";
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OsfigSettings {
     pub(crate) scan_settings: ScanSettings,
+    pub(crate) scan_result_path: String,
 }
 
 pub fn print_usage() {
@@ -49,32 +55,43 @@ pub fn print_usage() {
 
 fn print_banner() {
     // Todo is it possible to detect when a terminal doesn't support color output?
-    print!("\n\x1b[0;95m");
-    println!("     \x1b[0;95m███████      █████████   ███████████ ██████    ████████");
-    println!("    \x1b[0;95m███\x1b[0;94m░░░░░\x1b[0;95m███   ███\x1b[0;94m░░░░░\x1b[0;95m███ \x1b[0;94m░░\x1b[0;95m███\x1b[0;94m░░░░░  ░░\x1b[0;95m███    ███\x1b[0;94m░░░░░\x1b[0;95m███");
-    println!("   \x1b[0;95m███     \x1b[0;94m░░\x1b[0;95m███ \x1b[0;94m░\x1b[0;95m███    \x1b[0;94m░░░   ░\x1b[0;95m███   █    \x1b[0;94m░\x1b[0;95m███   ███     \x1b[0;94m░░░");
-    println!("  \x1b[0;94m░\x1b[0;95m███      \x1b[0;94m░\x1b[0;95m███  \x1b[0;94m░\x1b[0;95m█████████   \x1b[0;94m░\x1b[0;95m███████    \x1b[0;94m░\x1b[0;95m███  \x1b[0;94m░\x1b[0;95m███");
-    println!("  \x1b[0;94m░\x1b[0;95m███      \x1b[0;94m░\x1b[0;95m███  \x1b[0;94m░░░░░░░░\x1b[0;95m███  \x1b[0;94m░\x1b[0;95m███\x1b[0;94m░░░\x1b[0;95m█    \x1b[0;94m░\x1b[0;95m███  \x1b[0;94m░\x1b[0;95m███    █████");
-    println!("  \x1b[0;94m░░\x1b[0;95m███     ███   ███    \x1b[0;94m░\x1b[0;95m███  \x1b[0;94m░\x1b[0;95m███  \x1b[0;94m░     ░\x1b[0;95m███  \x1b[0;94m░░\x1b[0;95m███  \x1b[0;94m░░\x1b[0;95m███");
-    println!("   \x1b[0;94m░░\x1b[0;95m███████\x1b[0;94m░    ░\x1b[0;95m█████████   █████       ██████  \x1b[0;94m░░\x1b[0;95m████████");
-    println!("     \x1b[0;94m░░░░░░░      ░░░░░░░░░   ░░░░░       ░░░░░░    ░░░░░░░░");
-    print!("\x1b[0m");
 
-    // print!("\n");
-    // println!("     ███████      █████████   ███████████ ██████    ████████");
-    // println!("    ███░░░░░███   ███░░░░░███ ░░███░░░░░  ░░███    ███░░░░░███");
-    // println!("   ███     ░░███ ░███    ░░░   ░███   █    ░███   ███     ░░░");
-    // println!("  ░███      ░███  ░█████████   ░███████    ░███  ░███");
-    // println!("  ░███      ░███  ░░░░░░░░███  ░███░░░█    ░███  ░███    █████");
-    // println!("  ░░███     ███   ███    ░███  ░███  ░     ░███  ░░███  ░░███");
-    // println!("   ░░███████░    ░█████████   █████       ██████  ░░████████");
-    // println!("     ░░░░░░░      ░░░░░░░░░   ░░░░░       ░░░░░░    ░░░░░░░░");
-    // print!("");
+    const COLOR_SOLID: &str = "\x1b[0;95m";
+    const COLOR_SHADOW: &str = "\x1b[0;94m";
+    const COLOR_RESET: &str = "\x1b[0m";
+
+    const CHAR_SOLID: &str = "█";
+    const CHAR_SHADOW: &str = "░";
+
+    const ASCII_LOGO: &str = "\n
+     ███████      █████████   ███████████ ██████    ████████
+    ███░░░░░███   ███░░░░░███ ░░███░░░░░  ░░███    ███░░░░░███
+   ███     ░░███ ░███    ░░░   ░███   █    ░███   ███     ░░░
+  ░███      ░███  ░█████████   ░███████    ░███  ░███
+  ░███      ░███  ░░░░░░░░███  ░███░░░█    ░███  ░███    █████
+  ░░███     ███   ███    ░███  ░███  ░     ░███  ░░███  ░░███
+   ░░███████░    ░█████████   █████       ██████  ░░████████
+     ░░░░░░░      ░░░░░░░░░   ░░░░░       ░░░░░░    ░░░░░░░░
+    ";
+
+    println!();
+    for ascii_char in ASCII_LOGO.chars() {
+        if ascii_char.to_string().as_str() == CHAR_SOLID {
+            print!("{}{}", COLOR_SOLID, ascii_char);
+        } else if ascii_char.to_string().as_str() == CHAR_SHADOW {
+            print!("{}{}", COLOR_SHADOW, ascii_char);
+        }
+        if ascii_char.is_ascii_whitespace() || ascii_char.is_control() {
+            print!("{}", ascii_char);
+        }
+    }
+    println!("\x1b[0m");
 }
 
 fn get_default_settings() -> OsfigSettings {
     let osfig_settings = OsfigSettings {
         scan_settings: get_default_scan_settings(),
+        scan_result_path: DEFAULT_SCANS_SAVE_PATH.to_string(),
     };
 
     osfig_settings
@@ -153,10 +170,29 @@ pub fn load_osfig_settings() -> OsfigSettings {
     let mut settings: OsfigSettings = from_str(data.as_ref()).unwrap();
     // If you don't enforce a maximum, someone will use a u16. Nobody needs to pause for 1:05 min
     // between file scans. 10s is more than reasonable--excessive, actually.
-    if settings.scan_settings.file_scan_delay > 10000 {
-        warn!("Invalid setting configuration: file_scan_delay: See documentation");
-        settings.scan_settings.file_scan_delay = 10000;
+
+    if settings.scan_settings.file_scan_delay > MAX_FILE_SCAN_DELAY {
+        reset_delay(&mut settings.scan_settings);
+    }
+
+    // If they provide no path, use the default directory.
+    if is_bad_scan_save_path(&settings.scan_result_path) {
+        settings.scan_result_path = DEFAULT_SCANS_SAVE_PATH.to_string();
     }
 
     settings
+}
+
+fn reset_delay(scan_settings: &mut ScanSettings) {
+    warn!("Invalid setting configuration: file_scan_delay: See documentation");
+    scan_settings.file_scan_delay = MAX_FILE_SCAN_DELAY;
+}
+
+fn is_bad_scan_save_path(path: &String) -> bool {
+    if path.is_empty() || path.ends_with("/") || path.ends_with("\\") {
+        warn!("Invalid setting configuration: scan_result_path: See documentation");
+        false
+    } else {
+        true
+    }
 }

@@ -18,7 +18,7 @@ A true/false value indicating if the path is a directory.
 ### is_file
 A true/false value indicating if the path is a file.
 
-### is_sym
+### is_symbolic_link
 A true/false value indicating if the path is a symlink.
 
 ### is_readonly
@@ -36,20 +36,20 @@ A true/false value indicating if the path exists. Note that due to glob expansio
 * blake2s
   * This value populates an blake2s hash when that setting is enabled.
 
-### ctime
+### creation_time
 A date/time value in ISO8601 format, UTC time zone, showing the creation time of the path.
 
-### mtime
-A date/time value in ISO8601 format, UTC time zone, showing the last modification time of the path. If this is the same as the ctime, then the path has never been modified.
+### modified_time
+A date/time value in ISO8601 format, UTC time zone, showing the last modification time of the path. If this is the same as the creation_time, then the path has never been modified.
 
-### atime
+### access_time
 A date/time value in ISO8601 format, UTC time zone, showing the last access time of a path.
 
 ### size
 An integer value showing the number of bytes the path requires. This is not the size on disk value which will vary based upon storage volume geometry. OSFIG will only represent the quantity of bytes of data for any given path. This is the common practice among the majority of software, so this value can be used for comparison in other systems.
 > For example, if you have a file containing 1024 bytes of data and your drive sector size is 1024 bytes, then size would equal size on disk. Conversely, if that same file only stored 37 bytes of data, the size on disk would still require 1024 bytes.
 
-### attrs
+### attributes
 This field contains a raw bits value for the file attribute data reported by the OS.
 
 ### contents
@@ -64,7 +64,7 @@ This field contains the file contents with differences. RED highlights are remov
 ### content_diff_readable
 This field is a normalized view of the same content diffs in the prior field. This will label the line numbers and show which lines were --[\[REMOVALS\]] and which were ++[\[ADDITIONS\]].
 
-### dacl / sacl
+### discretionary_acl / system_acl
 The dacl and sacl fields are just parent objects which store the related fields for a DACL or SACL entry. Discretionary ACLs and System ACLs are Windows specific. In order to prevent confusion these fields are intentionally missing when run in Linux.
 #### object_type
 This child field will show the ACL object type, e.g. FileObject.
