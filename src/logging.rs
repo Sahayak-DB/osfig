@@ -1,6 +1,7 @@
 use log4rs;
 use std::fs;
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 
 pub fn setup_logging() {
@@ -22,6 +23,7 @@ pub fn setup_logging() {
             println!("Unable to access self-owned directory. Aborting!");
             panic!("Problem opening the file: ./config/osfig_log_settings.yml")
         }
+        let _ = result.unwrap().flush();
 
         // Write the templated config contents into our new file handle
         let config_contents = return_default_config();

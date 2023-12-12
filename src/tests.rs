@@ -314,81 +314,71 @@ mod hashing_tests {
     use std::any::Any;
     use std::fs::File;
     use std::io::Write;
+    use std::path::Path;
 
     fn setup_hash_tests() {
         teardown_hash_tests();
-        let dirs: Vec<&str> = vec!["./scans"];
-        for dir in dirs {
-            let _ = match std::fs::create_dir_all(dir) {
-                Ok(_) => {
-                    assert!(true)
-                }
-                Err(_) => {
-                    assert!(false)
-                }
-            };
-        }
-        let files: Vec<&str> = vec!["./testfile1"];
-        for file in files {
-            let _ = match File::create(file) {
-                Ok(mut file) => {
-                    file.write_all("test contents".as_bytes()).unwrap();
-                    assert!(true)
-                }
-                Err(_) => {
-                    assert!(false)
-                }
-            };
-        }
+        let example_text = String::from("Test contents");
+        let mut testfile = File::create("./hashtestfile").unwrap();
+        let _ = testfile.write_all(example_text.as_bytes());
+        let _ = testfile.flush();
+
         // Tests run too fast on some systems causing intermittent failures.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
+
     fn teardown_hash_tests() {
-        let files: Vec<&str> = vec!["./testfile1"];
-        let dirs: Vec<&str> = vec!["./scans"];
+        let files: Vec<&str> = vec!["./hashtestfile"];
 
         for file in files {
             let _ = std::fs::remove_file(file);
         }
 
-        for dir in dirs {
-            let _ = std::fs::remove_dir_all(dir);
-        }
         // Tests run too fast on some systems causing intermittent failures.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
 
     #[test]
     fn test_md5() {
         setup_hash_tests();
         // Placeholder
-        let expected_value_md5: String = String::from("AAAF7028B8B9C6CE59BD3D1EE80869B3");
-        assert_eq!(get_md5(Path::new("testfile")), expected_value_md5);
+        let expected_value_md5: String = String::from("2CEDB0215290E9A96103135E2843FA79");
+        assert_eq!(get_md5(Path::new("./hashtestfile")), expected_value_md5);
         teardown_hash_tests();
     }
+
     #[test]
     fn test_sha256() {
         setup_hash_tests();
         let expected_value_sha256: String =
-            String::from("AB0E2C4143F4F6815306AF9C90BCC21A06CE5A7C8D365AF5EC15D5AA515FDBC1");
-        assert_eq!(get_sha256(Path::new("testfile")), expected_value_sha256);
+            String::from("96640A0073CD72CB62AE9403105FB97D4635E7FF87658C1AF0034242B7BED840");
+        assert_eq!(
+            get_sha256(Path::new("./hashtestfile")),
+            expected_value_sha256
+        );
         teardown_hash_tests();
     }
+
     #[test]
     fn test_blake2s() {
         setup_hash_tests();
         let expected_value_blake2s: String =
-            String::from("C21A3B5FFA9298A9887935B83AF05616BDD7E47CA9A8DF1FDF9D570F8E140320");
-        assert_eq!(get_blake2s(Path::new("testfile")), expected_value_blake2s);
+            String::from("2F777E0B8C11400C57CCE39AA8741E759E5FE44C0D31016B4BB1714908AF4B9F");
+        assert_eq!(
+            get_blake2s(Path::new("./hashtestfile")),
+            expected_value_blake2s
+        );
         teardown_hash_tests();
+    }
+    #[test]
     fn test_hashes() {
         setup_hash_tests();
 
         // Check known hashes for all types
         let expected_hashes: HashValues = HashValues {
-            md5: "DF14E44B311152C34358A675AE34AFE0".to_string(),
-            sha256: "94C4018D2DCF3327223159659ED0B4BC14461CF394FE1E180E2B5D663938743D".to_string(),
-            blake2s: "949036896470B5D6B5D95AF134C2A6A97D0C8F36FCD4E6CB38FA3F04114F0662".to_string(),
+            md5: "2CEDB0215290E9A96103135E2843FA79".to_string(),
+            sha256: "96640A0073CD72CB62AE9403105FB97D4635E7FF87658C1AF0034242B7BED840".to_string(),
+            blake2s: "2F777E0B8C11400C57CCE39AA8741E759E5FE44C0D31016B4BB1714908AF4B9F".to_string(),
         };
 
         let hash_results = get_all_hashes(
@@ -397,7 +387,7 @@ mod hashing_tests {
                 sha256: true,
                 blake2s: true,
             },
-            "./testfile1".as_ref(),
+            Path::new("./hashtestfile"),
         );
 
         assert_eq!(hash_results.type_id(), expected_hashes.type_id());
@@ -409,7 +399,7 @@ mod hashing_tests {
         // Honestly if you want to know why these tests are here, look at the hashing.rs file
         // that was updated in this same commit. Tests are your friend... but apparently I'm not
         let expected_hashes: HashValues = HashValues {
-            md5: "DF14E44B311152C34358A675AE34AFE0".to_string(),
+            md5: "2CEDB0215290E9A96103135E2843FA79".to_string(),
             sha256: "".to_string(),
             blake2s: "".to_string(),
         };
@@ -419,7 +409,7 @@ mod hashing_tests {
                 sha256: false,
                 blake2s: false,
             },
-            "./testfile1".as_ref(),
+            Path::new("./hashtestfile"),
         );
         assert_eq!(expected_hashes.md5, hash_results.md5);
         assert_eq!(expected_hashes.sha256, hash_results.sha256);
@@ -427,7 +417,7 @@ mod hashing_tests {
 
         let expected_hashes: HashValues = HashValues {
             md5: "".to_string(),
-            sha256: "94C4018D2DCF3327223159659ED0B4BC14461CF394FE1E180E2B5D663938743D".to_string(),
+            sha256: "96640A0073CD72CB62AE9403105FB97D4635E7FF87658C1AF0034242B7BED840".to_string(),
             blake2s: "".to_string(),
         };
         let hash_results = get_all_hashes(
@@ -436,7 +426,7 @@ mod hashing_tests {
                 sha256: true,
                 blake2s: false,
             },
-            "./testfile1".as_ref(),
+            Path::new("./hashtestfile"),
         );
         assert_eq!(expected_hashes.md5, hash_results.md5);
         assert_eq!(expected_hashes.sha256, hash_results.sha256);
@@ -445,7 +435,7 @@ mod hashing_tests {
         let expected_hashes: HashValues = HashValues {
             md5: "".to_string(),
             sha256: "".to_string(),
-            blake2s: "949036896470B5D6B5D95AF134C2A6A97D0C8F36FCD4E6CB38FA3F04114F0662".to_string(),
+            blake2s: "2F777E0B8C11400C57CCE39AA8741E759E5FE44C0D31016B4BB1714908AF4B9F".to_string(),
         };
         let hash_results = get_all_hashes(
             &FileHashes {
@@ -453,7 +443,7 @@ mod hashing_tests {
                 sha256: false,
                 blake2s: true,
             },
-            "./testfile1".as_ref(),
+            Path::new("./hashtestfile"),
         );
         assert_eq!(expected_hashes.md5, hash_results.md5);
         assert_eq!(expected_hashes.sha256, hash_results.sha256);
@@ -470,9 +460,10 @@ mod logging_tests {
     use crate::logging::*;
     use log::info;
     use std::any::Any;
-    use std::path::Path;
     use std::fs::File;
     use std::io::Read;
+    use std::ops::Deref;
+    use std::path::Path;
 
     fn setup_logging_tests() {
         teardown_logging_tests();
@@ -480,43 +471,30 @@ mod logging_tests {
     }
 
     fn teardown_logging_tests() {
-        let files: Vec<&str> = vec!["./config/osfig_log_settings.yml"];
-        let dirs: Vec<&str> = vec![];
+        let files: Vec<&str> = vec!["./config/osfig_log_settings.yml", "./logs/osfig.log"];
 
         for file in files {
             let _ = std::fs::remove_file(file);
         }
 
-        for dir in dirs {
-            let _ = std::fs::remove_dir_all(dir);
-        }
         // Tests run too fast on some systems causing intermittent failures.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
 
     #[test]
     fn test_logging() {
-        let _ = std::fs::remove_file("./config/osfig_log_settings.yml");
-        let _ = std::fs::remove_file("./logs/osfig.log");
-        setup_logging();
-        info!("Test");
+        setup_logging_tests();
+        let test_string = "Test 123 asdf";
+        info!("{}", test_string);
 
         if Path::new("./logs/osfig.log").exists() {
             assert!(true);
         } else {
             assert!(false);
         }
-    }
 
-    #[test]
-    fn test_default_config() {
-        let expected_type = return_default_config();
-        assert_eq!(expected_type.type_id(), String::new().type_id());
-    fn test_example() {
-        teardown_logging_tests();
-
-        setup_logging();
-        std::thread::sleep(std::time::Duration::from_millis(150));
+        let expected_type = String::new();
+        assert_eq!(return_default_config().type_id(), expected_type.type_id());
 
         let log_config_file = File::open("./config/osfig_log_settings.yml");
         let mut log_contents = Vec::new();
@@ -525,10 +503,19 @@ mod logging_tests {
             .read_to_end(&mut log_contents)
             .unwrap();
 
-        let expected_type: String = String::from("");
         assert_eq!(return_default_config().into_bytes(), log_contents);
+
+        let logfile = File::open("./logs/osfig.log");
+        let mut log_contents = Vec::new();
+        logfile.unwrap().read_to_end(&mut log_contents).unwrap();
+
+        let log_contents = String::from_utf8(log_contents).unwrap();
+        assert!(log_contents.contains(test_string));
+
+        teardown_logging_tests();
     }
 }
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////     OSFIG_STATE    ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -558,6 +545,7 @@ mod osfig_state_tests {
         // Tests run too fast on some systems causing intermittent failures.
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+
     #[test]
     fn test_default_settings() {
         setup_settings_tests();
@@ -622,6 +610,7 @@ mod osfig_state_tests {
         teardown_settings_tests();
     }
 }
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////      REGISTRY      ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -640,6 +629,7 @@ mod registry_tests {
         assert_eq!(String::from("").type_id(), expected_type.type_id());
     }
 }
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////   SCAN_SETTINGS    ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -655,6 +645,7 @@ mod scan_settings_tests {
         assert_eq!(String::from("").type_id(), expected_type.type_id());
     }
 }
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////       WIN_ACL      ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
