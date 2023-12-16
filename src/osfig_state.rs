@@ -1,4 +1,4 @@
-use crate::scan_settings::{get_default_scan_settings, ScanSettings};
+use crate::scan_settings::{get_default_scan_settings, FileScanSetting, ScanSettings};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
@@ -12,6 +12,7 @@ use std::string::ToString;
 // Settings defaults
 const MAX_FILE_SCAN_DELAY: u16 = 10000;
 const DEFAULT_SCANS_SAVE_PATH: &'static str = "./scans";
+const DEFAULT_FILE_READ_BUFFER_SIZE: u64 = 4_096;
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,7 +86,7 @@ fn print_banner() {
             print!("{}", ascii_char);
         }
     }
-    println!("\x1b[0m");
+    println!("{}", COLOR_RESET);
 }
 
 fn get_default_settings() -> OsfigSettings {
@@ -96,15 +97,21 @@ fn get_default_settings() -> OsfigSettings {
 
     osfig_settings
 }
+const CONFIG_FILE_PATH: &str = "./config/osfig_settings.json";
+
+pub fn get_default_config_path() -> &'static Path {
+    Path::new(CONFIG_FILE_PATH)
+}
 
 pub fn save_osfig_settings(settings: OsfigSettings) {
     // Save settings to a json file
-    let path = Path::new("./config/osfig_settings.json");
+    let path = Path::new(get_default_config_path());
     let config_dir = Path::new(&path).parent().unwrap();
     if !config_dir.exists() {
         match fs::create_dir_all(config_dir) {
             Ok(_) => {
-                info!("Created ./config/ directory")
+                let config_dir = Path::new(get_default_config_path()).parent();
+                info!("Created {:?} directory", config_dir)
             }
             Err(e) => {
                 error!("Cannot create config directory: {}", e)
@@ -134,7 +141,7 @@ pub fn save_osfig_settings(settings: OsfigSettings) {
 
 pub fn load_osfig_settings() -> OsfigSettings {
     // Attempt to load settings from json
-    let path = Path::new("./config/osfig_settings.json");
+    let path = Path::new(get_default_config_path());
     let config_dir = Path::new(&path).parent().unwrap();
 
     if !path.exists() {
@@ -172,13 +179,39 @@ pub fn load_osfig_settings() -> OsfigSettings {
     // between file scans. 10s is more than reasonable--excessive, actually.
 
     if settings.scan_settings.file_scan_delay > MAX_FILE_SCAN_DELAY {
+        warn!(
+            "Found too large file_scan_delay: Resetting to {}",
+            MAX_FILE_SCAN_DELAY
+        );
         reset_delay(&mut settings.scan_settings);
     }
 
     // If they provide no path, use the default directory.
     if is_bad_scan_save_path(&settings.scan_result_path) {
+        warn!(
+            "Found invalid scan_result_path: Resetting to {}",
+            DEFAULT_SCANS_SAVE_PATH
+        );
         settings.scan_result_path = DEFAULT_SCANS_SAVE_PATH.to_string();
     }
+
+    // If they provide an oversized value it fits into our u64, but we are trying to keep this limited to a sane
+    // memory amount. Honestly, 4gb is excessive as it is.
+    let mut temp_file_scan_settings: Vec<FileScanSetting> = Vec::new();
+    for file_scan_setting in settings.scan_settings.file_scan_settings {
+        let mut temp_file_scan_setting = file_scan_setting.clone();
+        if file_scan_setting.file_read_buffer_size <= 0
+            || file_scan_setting.file_read_buffer_size > 4_294_967_296
+        {
+            warn!(
+                "Found invalid file_read_buffer_size: Resetting to {}",
+                DEFAULT_FILE_READ_BUFFER_SIZE
+            );
+            temp_file_scan_setting.file_read_buffer_size = DEFAULT_FILE_READ_BUFFER_SIZE;
+        }
+        temp_file_scan_settings.push(temp_file_scan_setting);
+    }
+    settings.scan_settings.file_scan_settings = temp_file_scan_settings;
 
     settings
 }

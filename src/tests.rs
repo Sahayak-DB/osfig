@@ -502,7 +502,10 @@ mod logging_tests {
         }
 
         let expected_type = String::new();
-        assert_eq!(return_default_config().type_id(), expected_type.type_id());
+        assert_eq!(
+            return_default_logging_config().type_id(),
+            expected_type.type_id()
+        );
 
         let log_config_file = File::open("./config/osfig_log_settings.yml");
         let mut log_contents = Vec::new();
@@ -511,7 +514,7 @@ mod logging_tests {
             .read_to_end(&mut log_contents)
             .unwrap();
 
-        assert_eq!(return_default_config().into_bytes(), log_contents);
+        assert_eq!(return_default_logging_config().into_bytes(), log_contents);
 
         let logfile = File::open("./logs/osfig.log");
         let mut log_contents = Vec::new();

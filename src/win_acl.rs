@@ -3,6 +3,7 @@ use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::path::Path;
+use winapi::shared::minwindef::BYTE;
 #[cfg(windows)]
 use {
     winapi::um::winnt,
@@ -26,31 +27,13 @@ pub struct WinAcl {
 }
 
 #[cfg(windows)]
-pub fn get_win_dacls(path: &Path) -> WinAcl {
-    debug!("Collecting DACLs");
-    if File::open(&path).is_err() {
-        warn!("Cannot open file: {}", path.to_str().unwrap());
-        return WinAcl {
-            object_type: "".to_string(),
-            acl_entries: vec![],
-        };
+pub fn get_win_acls(path: &Path, include_sacl: bool) -> WinAcl {
+    if include_sacl {
+        debug!("Collecting SACLs");
+    } else {
+        debug!("Collecting DACLs");
     }
-    let dacl = ACL::from_file_path(path.to_str().unwrap(), false).unwrap();
-    let mut acl_result: WinAcl = WinAcl {
-        object_type: "".to_string(),
-        acl_entries: vec![],
-    };
-    acl_result.object_type = dacl.object_type().to_string();
-    for item in &dacl.all().unwrap() {
-        let acl_entry = read_win_file_acl(&dacl, item);
-        acl_result.acl_entries.push(acl_entry);
-    }
-    acl_result
-}
 
-#[cfg(windows)]
-pub fn get_win_sacls(path: &Path) -> WinAcl {
-    debug!("Collecting SACLs");
     if File::open(&path).is_err() {
         warn!("Cannot open file: {}", path.to_str().unwrap());
         return WinAcl {
@@ -58,7 +41,7 @@ pub fn get_win_sacls(path: &Path) -> WinAcl {
             acl_entries: vec![],
         };
     }
-    let sacl = ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
+    let sacl = ACL::from_file_path(path.to_str().unwrap(), include_sacl).unwrap();
     let mut acl_result: WinAcl = WinAcl {
         object_type: "".to_string(),
         acl_entries: vec![],
@@ -72,17 +55,41 @@ pub fn get_win_sacls(path: &Path) -> WinAcl {
 }
 
 #[cfg(windows)]
+pub fn get_win_dacls(path: &Path) -> WinAcl {
+    get_win_acls(path, false)
+}
+
+#[cfg(windows)]
+pub fn get_win_sacls(path: &Path) -> WinAcl {
+    get_win_acls(path, true)
+}
+
+#[cfg(windows)]
 fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
     // Some of the code in this function was heavily influenced by example code from the creator
     // of the winnt crate. I strongly encourage you to check it out for your own projects.
+
+    fn build_description(mask: BYTE, definitions: &[(BYTE, &str); 7]) -> String {
+        let mut descriptions = definitions
+            .iter()
+            .filter(|(def_mask, _)| mask & def_mask > 0)
+            .map(|(_, desc)| *desc)
+            .collect::<Vec<_>>();
+
+        if descriptions.is_empty() {
+            descriptions.push("None");
+        }
+
+        descriptions.join("|")
+    }
+
     let mut acl_entry_result: WinaclEntry = WinaclEntry {
-        acl_type: "".to_string(),
+        acl_type: acl_entry.entry_type.to_string(),
         acl_flags: "".to_string(),
         acl_sid: "".to_string(),
         acl_user: "".to_string(),
         acl_mask: "".to_string(),
     };
-    acl_entry_result.acl_type = acl_entry.entry_type.to_string();
 
     // Check ACL SID
     let sid = match acl_entry.sid {
@@ -92,7 +99,6 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
     };
 
     // Check ACL Flags
-    let mut flags: String = String::new();
     let defined_flags = [
         (winnt::CONTAINER_INHERIT_ACE, "ContainerInheritAce"),
         (winnt::FAILED_ACCESS_ACE_FLAG, "FailedAccessAce"),
@@ -103,20 +109,9 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
         (winnt::SUCCESSFUL_ACCESS_ACE_FLAG, "SuccessfulAccessAce"),
     ];
 
-    for &(flag, desc) in &defined_flags {
-        if (acl_entry.flags & flag) > 0 {
-            if flags.len() > 0 {
-                flags += "|";
-            }
-            flags += desc;
-        }
-    }
-    if flags.len() == 0 {
-        flags += "None";
-    }
-    acl_entry_result.acl_flags = flags;
+    acl_entry_result.acl_flags = build_description(acl_entry.flags, &defined_flags);
 
-    let mut masks: String = String::new();
+    let mut masks: Vec<String> = Vec::new();
     if acl_entry.entry_type == AceType::SystemMandatoryLabel {
         let defined_masks = [
             (winnt::SYSTEM_MANDATORY_LABEL_NO_EXECUTE_UP, "NoExecUp"),
@@ -125,46 +120,31 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
         ];
         for &(mask, desc) in &defined_masks {
             if (acl_entry.mask & mask) > 0 {
-                if masks.len() > 0 {
-                    masks += "|";
-                }
-                masks += desc;
+                masks.push(desc.to_string());
             }
         }
     } else {
         match acl.object_type() {
             windows_acl::acl::ObjectType::FileObject => {
                 if (acl_entry.mask & winnt::FILE_ALL_ACCESS) == winnt::FILE_ALL_ACCESS {
-                    if masks.len() > 0 {
-                        masks += "|";
-                    }
-                    masks += "FileAllAccess";
+                    masks.push("FileAllAccess".to_string());
                 } else {
                     if (acl_entry.mask & winnt::FILE_GENERIC_READ)
                         == (winnt::FILE_GENERIC_READ & !winnt::SYNCHRONIZE)
                     {
-                        if masks.len() > 0 {
-                            masks += "|";
-                        }
-                        masks += "FileGenericRead";
+                        masks.push("FileGenericRead".to_string());
                     }
 
                     if (acl_entry.mask & winnt::FILE_GENERIC_WRITE)
                         == (winnt::FILE_GENERIC_WRITE & !winnt::SYNCHRONIZE)
                     {
-                        if masks.len() > 0 {
-                            masks += "|";
-                        }
-                        masks += "FileGenericWrite";
+                        masks.push("FileGenericWrite".to_string());
                     }
 
                     if (acl_entry.mask & winnt::FILE_GENERIC_EXECUTE)
                         == (winnt::FILE_GENERIC_EXECUTE & !winnt::SYNCHRONIZE)
                     {
-                        if masks.len() > 0 {
-                            masks += "|";
-                        }
-                        masks += "FileGenericExec";
+                        masks.push("FileGenericExec".to_string());
                     }
 
                     if masks.len() == 0 {
@@ -181,10 +161,7 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
                         ];
                         for &(mask, desc) in &defined_specific_rights {
                             if (acl_entry.mask & mask) > 0 {
-                                if masks.len() > 0 {
-                                    masks += "|";
-                                }
-                                masks += desc;
+                                masks.push(desc.to_string());
                             }
                         }
                     }
@@ -204,24 +181,21 @@ fn read_win_file_acl(acl: &ACL, acl_entry: &ACLEntry) -> WinaclEntry {
                     (winnt::SYNCHRONIZE, "Synchronize"),
                 ];
                 if (acl_entry.mask & winnt::STANDARD_RIGHTS_ALL) == winnt::STANDARD_RIGHTS_ALL {
-                    masks += "StandardRightsAll";
+                    masks.push("StandardRightsAll".to_string());
                 } else {
                     for &(mask, desc) in &defined_std_rights {
                         if (acl_entry.mask & mask) > 0 {
-                            if masks.len() > 0 {
-                                masks += "|";
-                            }
-                            masks += desc;
+                            masks.push(desc.to_string());
                         }
                     }
                 }
             }
         }
     }
-    if masks.len() == 0 {
-        masks += "None";
+    if masks.is_empty() {
+        masks.push("None".to_string());
     }
-    acl_entry_result.acl_mask = masks;
+    acl_entry_result.acl_mask = masks.join("|");
 
     // Construct ACL System\Username
     let (system_name, user_name) = helpers::sid_to_username(&sid);

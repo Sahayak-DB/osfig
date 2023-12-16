@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileHashes {
     pub(crate) md5: bool,
     pub(crate) sha256: bool,
@@ -17,6 +17,21 @@ pub struct FileScanSetting {
     pub(crate) file_dacl: bool,
     pub(crate) file_sacl: bool,
     pub(crate) file_content: bool,
+    pub(crate) file_read_buffer_size: u64,
+}
+
+impl Clone for FileScanSetting {
+    fn clone(&self) -> Self {
+        FileScanSetting {
+            file_patterns: self.file_patterns.clone(),
+            file_ignore_patterns: self.file_ignore_patterns.clone(),
+            file_hashes: self.file_hashes.clone(),
+            file_dacl: self.file_dacl,
+            file_sacl: self.file_sacl,
+            file_content: self.file_content,
+            file_read_buffer_size: self.file_read_buffer_size,
+        }
+    }
 }
 
 #[allow(unused)]
@@ -38,7 +53,7 @@ pub fn get_default_scan_settings() -> ScanSettings {
         registry_patterns: get_default_registry_paths(),
     };
 
-    let win_entry = FileScanSetting {
+    scan_settings.file_scan_settings.push(FileScanSetting {
         file_patterns: get_default_file_paths("windows"),
         file_ignore_patterns: get_default_ignore_file_paths("windows"),
         file_hashes: FileHashes {
@@ -49,8 +64,10 @@ pub fn get_default_scan_settings() -> ScanSettings {
         file_dacl: true,
         file_sacl: false,
         file_content: false,
-    };
-    let lin_entry = FileScanSetting {
+        file_read_buffer_size: 4_000,
+    });
+
+    scan_settings.file_scan_settings.push(FileScanSetting {
         file_patterns: get_default_file_paths("linux"),
         file_ignore_patterns: get_default_ignore_file_paths("linux"),
         file_hashes: FileHashes {
@@ -61,78 +78,100 @@ pub fn get_default_scan_settings() -> ScanSettings {
         file_dacl: false,
         file_sacl: false,
         file_content: false,
-    };
-    scan_settings.file_scan_settings.push(win_entry);
-    scan_settings.file_scan_settings.push(lin_entry);
+        file_read_buffer_size: 4_000,
+    });
 
     scan_settings
 }
 
+const WINDOWS_FILE_PATTERNS: [&str; 15] = [
+    "C:\\*.bat",
+    "C:\\*.ini",
+    "C:\\*.sys",
+    "C:\\Windows",
+    "C:\\Windows\\*.exe",
+    "C:\\Windows\\*.ini",
+    "C:\\Windows\\*.sys",
+    "C:\\Windows\\*.dll",
+    "C:\\Windows\\System32",
+    "C:\\Windows\\System32\\*.exe",
+    "C:\\Windows\\System32\\*.ini",
+    "C:\\Windows\\System32\\*.sys",
+    "C:\\Windows\\System32\\*.dll",
+    "C:\\Windows\\System32\\drivers\\etc",
+    "C:\\Windows\\System32\\drivers\\etc\\*",
+];
+
+const LINUX_FILE_PATTERNS: [&str; 28] = [
+    "/boot",
+    "/root",
+    "/root/.ssh",
+    "/.ssh/**",
+    "/home/*/.ssh/**",
+    "/etc",
+    "/etc/*",
+    "/lib/",
+    "/lib/*",
+    "/lib64/",
+    "/lib64/*",
+    "/bin",
+    "/bin/*",
+    "/sbin",
+    "/sbin/*",
+    "/usr/bin",
+    "/usr/bin/*",
+    "/usr/local/bin",
+    "/usr/local/bin/*",
+    "/usr/local/sbin",
+    "/usr/local/sbin/*",
+    "/usr/sbin",
+    "/usr/sbin/*",
+    "/usr/share/keyrings",
+    "/usr/libexec/openssh",
+    "/usr/libexec/openssh/*",
+    "/usr/kerberos/bin",
+    "/usr/kerberos/bin/*",
+];
+
 fn get_default_file_paths(os: &str) -> Vec<String> {
-    let mut patterns = Vec::new();
     if os == "windows" {
-        patterns.push("C:\\*.bat".to_string());
-        patterns.push("C:\\*.ini".to_string());
-        patterns.push("C:\\*.sys".to_string());
-        patterns.push("C:\\Windows".to_string());
-        patterns.push("C:\\Windows\\*.exe".to_string());
-        patterns.push("C:\\Windows\\*.ini".to_string());
-        patterns.push("C:\\Windows\\*.sys".to_string());
-        patterns.push("C:\\Windows\\*.dll".to_string());
-        patterns.push("C:\\Windows\\System32".to_string());
-        patterns.push("C:\\Windows\\System32\\*.exe".to_string());
-        patterns.push("C:\\Windows\\System32\\*.ini".to_string());
-        patterns.push("C:\\Windows\\System32\\*.sys".to_string());
-        patterns.push("C:\\Windows\\System32\\*.dll".to_string());
-        patterns.push("C:\\Windows\\System32\\drivers\\etc".to_string());
-        patterns.push("C:\\Windows\\System32\\drivers\\etc\\*".to_string());
+        WINDOWS_FILE_PATTERNS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
     } else if os == "linux" {
-        patterns.push("/boot".to_string());
-        patterns.push("/root".to_string());
-        patterns.push("/root/.ssh".to_string());
-        patterns.push("/.ssh/**".to_string());
-        patterns.push("/home/*/.ssh/**".to_string());
-        patterns.push("/etc".to_string());
-        patterns.push("/etc/*".to_string());
-        patterns.push("/lib/".to_string());
-        patterns.push("/lib/*".to_string());
-        patterns.push("/lib64/".to_string());
-        patterns.push("/lib64/*".to_string());
-        patterns.push("/bin".to_string());
-        patterns.push("/bin/*".to_string());
-        patterns.push("/sbin".to_string());
-        patterns.push("/sbin/*".to_string());
-        patterns.push("/usr/bin".to_string());
-        patterns.push("/usr/bin/*".to_string());
-        patterns.push("/usr/local/bin".to_string());
-        patterns.push("/usr/local/bin/*".to_string());
-        patterns.push("/usr/local/sbin".to_string());
-        patterns.push("/usr/local/sbin/*".to_string());
-        patterns.push("/usr/sbin".to_string());
-        patterns.push("/usr/sbin/*".to_string());
-        patterns.push("/usr/share/keyrings".to_string());
-        patterns.push("/usr/libexec/openssh".to_string());
-        patterns.push("/usr/libexec/openssh/*".to_string());
-        patterns.push("/usr/kerberos/bin".to_string());
-        patterns.push("/usr/kerberos/bin/*".to_string());
-    }
-
-    patterns
-}
-fn get_default_ignore_file_paths(os: &str) -> Vec<String> {
-    let patterns = Vec::new();
-
-    if os == "windows" {
-        patterns
-    } else if os == "linux" {
-        patterns
+        LINUX_FILE_PATTERNS.iter().map(|&s| s.to_string()).collect()
     } else {
-        patterns
+        Vec::new()
     }
 }
+
+const WINDOWS_IGNORE_PATTERNS: [&str; 1] = ["C:\\Windows\\Temp"];
+
+const LINUX_IGNORE_PATTERNS: [&str; 1] = ["/var/log"];
+
+fn get_default_ignore_file_paths(os: &str) -> Vec<String> {
+    if os == "windows" {
+        WINDOWS_IGNORE_PATTERNS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    } else if os == "linux" {
+        LINUX_IGNORE_PATTERNS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+const WINDOWS_REGISTRY_PATTERNS: [&str; 1] =
+    ["HKEY_LOCAL_MACHINE::SOFTWARE\\Python\\PythonCore|DisplayName"];
 
 fn get_default_registry_paths() -> Vec<String> {
-    let patterns = Vec::new();
-
-    patterns
+    WINDOWS_REGISTRY_PATTERNS
+        .iter()
+        .map(|&s| s.to_string())
+        .collect()
 }

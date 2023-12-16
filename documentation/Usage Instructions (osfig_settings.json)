@@ -73,6 +73,12 @@ This setting enables or disables collection of file contents. OSFIG only support
 * Formatting: Must be a lowercase true/false not surrounded by quotes.
 * Example: true,
 
+### file_read_buffer_size
+This setting controls the size (in bytes) of chunks that will be read from a file at a time. Changing this may improve or worsen performance. This setting controls the memory used during file hashing. Performance will be optimal if the read buffer is in multiple of your storage drive sector size (commonly 4k or 16k) 
+* Allowed values: Integer values from 1 to 4,294,967,296 (1 byte to 4 gigabytes)
+* Formatting: Must be whole integer values with no commas
+* Example: 4096, 16384
+
 ### file_scan_delay
 This value represents a number of milliseconds (1000ms equals 1 second) to pause between scanning files. By slowing down scanning, it reduces the CPU and Disk utilization of OSFIG. Suggested values are below based upon the desired system impact--smaller numbers use more resources but scan faster and bigger numbers use fewer resources, but scanning takes longer. This has no change to memory utilization.
 

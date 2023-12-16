@@ -367,7 +367,8 @@ pub fn scan_file(
 
     // At this point, we have a living result for a path. Collect the associated data.
     debug!("File path confirmed: Collecting hashes");
-    let hashes = hashing::get_all_hashes(&settings.file_hashes, path);
+    let hashes =
+        hashing::get_all_hashes(&settings.file_hashes, settings.file_read_buffer_size, path);
 
     debug!("Collecting metadata");
     let md = fs::metadata(path).unwrap();

@@ -7,6 +7,7 @@ use {
 #[cfg(windows)]
 #[allow(unused)]
 pub fn get_cur_sid() -> Vec<BYTE> {
+    // Todo add error handling for the unwraps
     let cur_user = windows_acl::helper::current_user();
     let cur_sid = windows_acl::helper::name_to_sid(&cur_user.unwrap().to_string(), None);
 
@@ -26,6 +27,7 @@ pub fn get_cur_username() -> String {
 #[allow(unused)]
 #[cfg(windows)]
 pub fn sid_to_username(sid: &String) -> (String, String) {
+    // Todo add error handling for the unwraps
     // Construct ACL System\Username
     let acl_sid: LocalBox<Sid> = sid.parse().unwrap();
     let result = windows_permissions::wrappers::LookupAccountSid(acl_sid.as_ref()).unwrap();
