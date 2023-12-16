@@ -185,6 +185,7 @@ mod file_tests {
             file_dacl: false,
             file_sacl: false,
             file_content: false,
+            file_read_buffer_size: 4096,
         };
         #[cfg(target_os = "linux")]
         let filescansetting = FileScanSetting {
@@ -198,16 +199,18 @@ mod file_tests {
             file_dacl: false,
             file_sacl: false,
             file_content: false,
+            file_read_buffer_size: 4096,
         };
 
         let osfig_settings = OsfigSettings {
             scan_settings: ScanSettings {
-                scan_files: false,
+                scan_files: true,
                 file_scan_settings: vec![filescansetting],
                 file_scan_delay: 0,
                 scan_registry: false,
                 registry_patterns: vec![],
             },
+            scan_result_path: "./scans".to_string(),
         };
 
         let expected_value = scan_files(&osfig_settings);
@@ -351,7 +354,10 @@ mod hashing_tests {
         setup_hash_tests();
         // Placeholder
         let expected_value_md5: String = String::from("2CEDB0215290E9A96103135E2843FA79");
-        assert_eq!(get_md5(Path::new("./hashtestfile")), expected_value_md5);
+        assert_eq!(
+            get_md5(Path::new("./hashtestfile"), 4096),
+            expected_value_md5
+        );
         teardown_hash_tests();
     }
 
@@ -361,7 +367,7 @@ mod hashing_tests {
         let expected_value_sha256: String =
             String::from("96640A0073CD72CB62AE9403105FB97D4635E7FF87658C1AF0034242B7BED840");
         assert_eq!(
-            get_sha256(Path::new("./hashtestfile")),
+            get_sha256(Path::new("./hashtestfile"), 4096),
             expected_value_sha256
         );
         teardown_hash_tests();
@@ -373,7 +379,7 @@ mod hashing_tests {
         let expected_value_blake2s: String =
             String::from("2F777E0B8C11400C57CCE39AA8741E759E5FE44C0D31016B4BB1714908AF4B9F");
         assert_eq!(
-            get_blake2s(Path::new("./hashtestfile")),
+            get_blake2s(Path::new("./hashtestfile"), 4096),
             expected_value_blake2s
         );
         teardown_hash_tests();
@@ -395,6 +401,7 @@ mod hashing_tests {
                 sha256: true,
                 blake2s: true,
             },
+            4096,
             Path::new("./hashtestfile"),
         );
 
@@ -417,6 +424,7 @@ mod hashing_tests {
                 sha256: false,
                 blake2s: false,
             },
+            4096,
             Path::new("./hashtestfile"),
         );
         assert_eq!(expected_hashes.md5, hash_results.md5);
@@ -434,6 +442,7 @@ mod hashing_tests {
                 sha256: true,
                 blake2s: false,
             },
+            4096,
             Path::new("./hashtestfile"),
         );
         assert_eq!(expected_hashes.md5, hash_results.md5);
@@ -451,6 +460,7 @@ mod hashing_tests {
                 sha256: false,
                 blake2s: true,
             },
+            4096,
             Path::new("./hashtestfile"),
         );
         assert_eq!(expected_hashes.md5, hash_results.md5);
@@ -571,7 +581,8 @@ mod osfig_state_tests {
                     file_scan_delay: 0,
                     scan_registry: false,
                     registry_patterns: vec![],
-                }
+                },
+                scan_result_path: "./scans".to_string(),
             }
             .type_id()
         );
@@ -613,7 +624,8 @@ mod osfig_state_tests {
                     file_scan_delay: 0,
                     scan_registry: false,
                     registry_patterns: vec![],
-                }
+                },
+                scan_result_path: "./scans".to_string(),
             }
             .type_id()
         );

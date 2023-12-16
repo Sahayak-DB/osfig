@@ -64,7 +64,7 @@ pub fn get_default_scan_settings() -> ScanSettings {
         file_dacl: true,
         file_sacl: false,
         file_content: false,
-        file_read_buffer_size: 4_000,
+        file_read_buffer_size: crate::osfig_state::DEFAULT_FILE_READ_BUFFER_SIZE,
     });
 
     scan_settings.file_scan_settings.push(FileScanSetting {
@@ -78,7 +78,7 @@ pub fn get_default_scan_settings() -> ScanSettings {
         file_dacl: false,
         file_sacl: false,
         file_content: false,
-        file_read_buffer_size: 4_000,
+        file_read_buffer_size: crate::osfig_state::DEFAULT_FILE_READ_BUFFER_SIZE,
     });
 
     scan_settings

@@ -4,8 +4,6 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
-use crate::osfig_state::get_default_config_path;
-
 const LOGGING_FILE_PATH: &str = "./config/osfig_log_settings.yml";
 
 pub fn get_default_logging_path() -> &'static Path {
@@ -14,9 +12,9 @@ pub fn get_default_logging_path() -> &'static Path {
 
 pub fn setup_logging() {
     // Check file existence to see if it needs to be created before loading an empty file handle
-    if !get_default_config_path().exists() {
+    if !get_default_logging_path().exists() {
         println!("Missing log configuration file. Recreating.");
-        let config_dir = get_default_config_path().parent().unwrap();
+        let config_dir = get_default_logging_path().parent().unwrap();
 
         // This should create all layers needed in case we ever change the log dir location
         std::fs::create_dir_all(config_dir).unwrap();
@@ -24,23 +22,23 @@ pub fn setup_logging() {
         // Attempt to create the config file in the path. This should fail if we don't have
         // file system access. Otherwise, this is an owned directory subordinate to OSFIG, so
         // inherited permissions should usually give us access rights.
-        let result = File::create(get_default_config_path());
+        let result = File::create(get_default_logging_path());
         if result.is_err() {
             println!("Unable to access self-owned directory. Aborting!");
-            panic!("Problem opening the file: {:?}", get_default_config_path())
+            panic!("Problem opening the file: {:?}", get_default_logging_path())
         }
         let _ = result.unwrap().flush();
 
         // Write the templated config contents into our new file handle
         let config_contents = return_default_logging_config();
-        let result_write = fs::write(get_default_config_path(), config_contents);
+        let result_write = fs::write(get_default_logging_path(), config_contents);
 
         // Again, this should definitely work if we had access to create the file. Then again, I've
         // seen crazier sets of user permissions before. I mean, who CHMODs with 400? I would
         // expect a 200 or 600 to be in place if we could create the file.
         if result_write.is_err() {
             println!("Unable to access self-owned directory. Aborting!");
-            panic!("Problem opening the file: {:?}", get_default_config_path())
+            panic!("Problem opening the file: {:?}", get_default_logging_path())
         }
         println!("Recreated default logging configuration. Set to ISO 8601 and UTC.");
     }

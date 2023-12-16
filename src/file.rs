@@ -192,7 +192,8 @@ pub fn find_newest_file(saved_scans_dir: &str) -> Box<PathBuf> {
 }
 
 pub fn get_latest_results(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
-    let results_path = find_newest_file(osfig_settings.scan_result_path.as_str());
+    let modified_scan_result_path = format!("{}/*.json", osfig_settings.scan_result_path.as_str());
+    let results_path = find_newest_file(modified_scan_result_path.as_str());
     if !results_path.exists() & !results_path.is_file() {
         return Vec::new();
     }

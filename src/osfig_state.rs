@@ -12,7 +12,7 @@ use std::string::ToString;
 // Settings defaults
 const MAX_FILE_SCAN_DELAY: u16 = 10000;
 const DEFAULT_SCANS_SAVE_PATH: &'static str = "./scans";
-const DEFAULT_FILE_READ_BUFFER_SIZE: u64 = 4_096;
+pub const DEFAULT_FILE_READ_BUFFER_SIZE: u64 = 4_096;
 
 #[allow(unused)]
 #[derive(Debug, Serialize, Deserialize)]
