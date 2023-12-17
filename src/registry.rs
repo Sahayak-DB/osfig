@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::ops::Index;
 use winreg::enums::{
     HKEY_CLASSES_ROOT, HKEY_CURRENT_CONFIG, HKEY_CURRENT_USER, HKEY_CURRENT_USER_LOCAL_SETTINGS,
@@ -6,7 +7,85 @@ use winreg::enums::{
 };
 use winreg::{EnumKeys, EnumValues, RegKey, RegValue, HKEY};
 
-#[cfg(windows)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryResults {
+    results: Vec<RegistryResult>,
+}
+
+impl RegistryResults {
+    pub fn add_result(&mut self, new_result: RegistryResult) {
+        let match_index = self.find_result(&new_result.path);
+        match match_index {
+            Some(match_index) => self.update_result(match_index, new_result),
+            None => self.results.push(new_result),
+        }
+    }
+    fn find_result(&self, path: &str) -> Option<usize> {
+        self.results.iter().position(|result| result.path == path)
+    }
+    fn update_result(&mut self, index: usize, new_result: RegistryResult) {
+        let mut existing_result = self.results.remove(index);
+        existing_result.add_data(new_result.data);
+        self.results.push(existing_result);
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryResult {
+    path: String,
+    data: RegistryData,
+}
+
+impl RegistryResult {
+    pub fn add_data(&mut self, new_data: RegistryData) {
+        self.data.add_all(new_data)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryData {
+    keys: Vec<String>,
+    values: Vec<String>,
+}
+
+impl RegistryData {
+    pub fn add_data(&mut self, new_data: RegistryData) {
+        for key in new_data.keys {
+            self.add_key(key)
+        }
+        for value in new_data.values {
+            self.add_value(value)
+        }
+    }
+    pub fn add_key(&mut self, new_key: String) {
+        let mut found_match = false;
+        for key in self.keys.clone() {
+            if key.eq(&new_key) {
+                found_match = true;
+            }
+        }
+        if !found_match {
+            self.keys.push(new_key)
+        }
+    }
+
+    pub fn add_value(&mut self, new_value: String) {
+        let mut found_match = false;
+        for value in self.values.clone() {
+            if value.eq(&new_value) {
+                found_match = true;
+            }
+        }
+        if !found_match {
+            self.values.push(new_value)
+        }
+    }
+    pub fn add_value_from_pair(&mut self, target_value: String, value: String) {
+        let final_data = format!("{} = {}", target_value, value);
+        self.add_value(final_data)
+    }
+}
+
 #[cfg(windows)]
 pub fn get_registry_hkey(hkey_name: &str) -> Result<HKEY, String> {
     match hkey_name {
@@ -30,7 +109,7 @@ pub fn get_registry_hkey(hkey_name: &str) -> Result<HKEY, String> {
 }
 
 #[cfg(windows)]
-pub fn scan_reg_key(full_registry_path: String) {
+pub fn scan_reg_key(full_registry_path: String) -> (String, RegistryData) {
     // Todo add the flags on key opening so we only have read access
     let mut path_items: Vec<&str>;
     if full_registry_path.contains("\\") {
@@ -52,12 +131,12 @@ pub fn scan_reg_key(full_registry_path: String) {
     };
 
     let mut reg_path: Vec<&str> = Vec::new();
-    let mut value: &str = "";
+    let mut target_value: &str = "";
     let mut final_subkey: &str = "";
 
     if path_items.index(path_items.len() - 1).contains("|") {
         let temp_val: Vec<&str> = path_items.index(path_items.len() - 1).split("|").collect();
-        value = temp_val[1];
+        target_value = temp_val[1];
         path_items.pop();
         path_items.push(temp_val[0]);
     }
@@ -65,7 +144,7 @@ pub fn scan_reg_key(full_registry_path: String) {
     for (i, path_item) in path_items.iter().enumerate() {
         if i != path_items.len() - 1 {
             reg_path.push(path_item)
-        } else if value.len() > 0 {
+        } else if target_value.len() > 0 {
             reg_path.push(path_item)
         } else {
             final_subkey = path_item
@@ -76,37 +155,70 @@ pub fn scan_reg_key(full_registry_path: String) {
 
     // This is the majority of our path
     let final_path = reg_path.join("\\");
-    let reg_handle = hkey.open_subkey(final_path).unwrap();
+    let reg_handle = hkey.open_subkey(final_path.clone()).unwrap();
+
+    let mut result_path: String = String::from("");
+    if full_registry_path.contains("|") {
+        // result_path = full_registry_path.split("|").collect()[0];
+
+        let result_path_a: Vec<&str> = full_registry_path.split("|").collect();
+        result_path = result_path_a.index(0).to_string();
+        let z = 1;
+        let f = 2;
+    } else {
+        result_path = full_registry_path.clone();
+    }
+
+    // Start constructing our output
+
+    let mut registry_data = RegistryData {
+        keys: vec![],
+        values: vec![],
+    };
 
     // Now we must handle the final subkey, or the specific value
-
-    println!();
-    println!();
-    println!("   reg_path: {}", full_registry_path);
     let mut final_handle: RegKey;
     if final_subkey.len() > 0 {
         final_handle = reg_handle.open_subkey(final_subkey).unwrap();
         let keys = final_handle.enum_keys();
         let values = final_handle.enum_values();
         for key in keys.map(|x| x.unwrap()) {
-            println!(" reg_subkey: {:?}", key);
+            registry_data.add_key(key)
         }
         // println!("    reg_keys: {:?}", keys);
-        for (name, value) in values.map(|x| x.unwrap()) {
-            println!("    reg_val: {} = {}", name, value);
+        for (value_key, value_value) in values.map(|x| x.unwrap()) {
+            registry_data.add_value_from_pair(value_key, value_value.to_string())
         }
     }
 
-    let mut target_value: String = String::new();
-    if value.len() > 0 {
-        target_value = reg_handle.get_value(value).unwrap();
-        println!("target_value: {:?}", target_value);
+    let mut value: String = String::new();
+    if target_value.len() > 0 {
+        value = reg_handle.get_value(target_value).unwrap();
+        registry_data.add_value_from_pair(target_value.to_string(), value)
     }
+
+    (result_path.to_string(), registry_data)
 }
 
 #[cfg(windows)]
 pub fn scan_reg_keys(path_list: Vec<String>) {
+    let mut registry_results = RegistryResults { results: vec![] };
+
     for path in path_list {
-        scan_reg_key(path)
+        let mut registry_result = RegistryResult {
+            path: "".to_string(),
+            data: RegistryData {
+                keys: vec![],
+                values: vec![],
+            },
+        };
+
+        (registry_result.path, registry_result.data) = scan_reg_key(path);
+
+        registry_results.add_result(registry_result);
     }
+
+    println!("Done scanning registry");
+    println!("Returning");
+    println!("{:?}", registry_results);
 }
