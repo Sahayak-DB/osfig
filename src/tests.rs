@@ -208,6 +208,7 @@ mod file_tests {
                 scan_registry: false,
                 registry_patterns: vec![],
             },
+            scan_result_path: "./scans".to_string(),
         };
 
         let expected_value = scan_files(&osfig_settings);
@@ -470,7 +471,6 @@ mod logging_tests {
     use std::any::Any;
     use std::fs::File;
     use std::io::Read;
-    use std::ops::Deref;
     use std::path::Path;
 
     fn setup_logging_tests() {
@@ -568,7 +568,8 @@ mod osfig_state_tests {
                     file_scan_delay: 0,
                     scan_registry: false,
                     registry_patterns: vec![],
-                }
+                },
+                scan_result_path: "./scans".to_string(),
             }
             .type_id()
         );
@@ -610,7 +611,8 @@ mod osfig_state_tests {
                     file_scan_delay: 0,
                     scan_registry: false,
                     registry_patterns: vec![],
-                }
+                },
+                scan_result_path: "./scans".to_string(),
             }
             .type_id()
         );
