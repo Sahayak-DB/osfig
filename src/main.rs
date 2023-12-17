@@ -43,7 +43,7 @@ fn main() -> std::io::Result<()> {
 
     #[cfg(windows)]
     if osfig_settings.scan_settings.scan_registry {
-        registry::scan_reg_keys();
+        registry::scan_reg_keys(osfig_settings.scan_settings.registry_patterns);
         info!("Registry scanning complete");
     } else {
         info!("Registry scanning disabled this run: Validate settings if this is not intended")
