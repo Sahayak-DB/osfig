@@ -9,7 +9,6 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 pub struct HashValues {
-    // Is there a real need to add 128 or 512?
     pub md5: String,
     pub sha256: String,
     pub blake2s: String,
@@ -24,7 +23,7 @@ impl fmt::Display for HashValues {
     }
 }
 
-pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
+pub fn get_all_hashes(hash_values: &FileHashes, read_buffer_size: u64, path: &Path) -> HashValues {
     let mut hashes: HashValues = HashValues {
         md5: "".to_string(),
         sha256: "".to_string(),
@@ -33,13 +32,13 @@ pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
 
     if path.is_file() {
         if hash_values.md5 {
-            hashes.md5 = get_md5(path);
+            hashes.md5 = get_md5(path, read_buffer_size);
         }
-        if hash_values.md5 {
-            hashes.sha256 = get_sha256(path);
+        if hash_values.sha256 {
+            hashes.sha256 = get_sha256(path, read_buffer_size);
         }
         if hash_values.blake2s {
-            hashes.blake2s = get_blake2s(path);
+            hashes.blake2s = get_blake2s(path, read_buffer_size);
         }
         info!("Hashing complete");
     } else {
@@ -52,7 +51,8 @@ pub fn get_all_hashes(hash_values: &FileHashes, path: &Path) -> HashValues {
 
     hashes
 }
-pub fn get_md5(path: &Path) -> String {
+
+pub fn get_md5(path: &Path, read_buffer_size: u64) -> String {
     // MD5 does have collissions, but it's still widely employed with commercial software
     // that users may need to compare with.
     if File::open(path).is_err() {
@@ -64,31 +64,31 @@ pub fn get_md5(path: &Path) -> String {
     }
 
     let file = File::open(path).expect("Cannot open file");
-    let len = file.metadata().unwrap().len();
+    let file_length = file.metadata().unwrap().len();
 
-    // Todo Need more testing on buffer size for reading large files. 4k seems to perform adequately
     // This buffer size will directly correlate to RAM usage. OSFIG is currently single threaded,
     // but need to keep this in mind for the distant future.
-    let buf_len = len.min(4_000) as usize;
-    let mut buf = BufReader::with_capacity(buf_len, file);
-    let mut ctx = md5::Context::new();
+    let read_buffer_size = file_length.min(read_buffer_size) as usize;
+    let mut read_buffer = BufReader::with_capacity(read_buffer_size, file);
+    let mut md5_context = md5::Context::new();
     loop {
-        let part = buf.fill_buf().unwrap();
+        let file_chunk = read_buffer.fill_buf().unwrap();
         // If the part is empty then we have reached EOF
-        if part.is_empty() {
+        if file_chunk.is_empty() {
             break;
         }
         // Hasher needs to consume data before the buffer does
-        ctx.consume(part);
-        let part_len = part.len();
+        md5_context.consume(file_chunk);
+        let part_len = file_chunk.len();
         // Buffer consuming the data moves us forward in the file
-        buf.consume(part_len);
+        read_buffer.consume(part_len);
     }
-    let md5_hash = format!("{:x}", ctx.compute()).to_ascii_uppercase();
+    let md5_hash = format!("{:x}", md5_context.compute()).to_ascii_uppercase();
     md5_hash
 }
 
-pub fn get_sha256(path: &Path) -> String {
+pub fn get_sha256(path: &Path, _read_buffer_size: u64) -> String {
+    // Todo if possible, implement a read buffer with size read_buffer_size
     if File::open(path).is_err() {
         warn!(
             "Cannot open file for sha256 hashing: {:?}",
@@ -101,7 +101,7 @@ pub fn get_sha256(path: &Path) -> String {
     sha256_hash
 }
 
-pub fn get_blake2s(path: &Path) -> String {
+pub fn get_blake2s(path: &Path, read_buffer_size: u64) -> String {
     if File::open(path).is_err() {
         warn!(
             "Cannot open file for blake2s hashing: {:?}",
@@ -111,17 +111,16 @@ pub fn get_blake2s(path: &Path) -> String {
     }
 
     let file = File::open(path).expect("Cannot open file");
-    let len = file.metadata().unwrap().len();
+    let file_length = file.metadata().unwrap().len();
 
-    // Todo Need more testing on buffer size for reading large files. 4k seems to perform adequately
     // This buffer size will directly correlate to RAM usage. OSFIG is currently single threaded,
     // but need to keep this in mind for the distant future.
-    let buf_len = len.min(4_000) as usize;
-    let mut buf = BufReader::with_capacity(buf_len, file);
+    let read_buffer_size = file_length.min(read_buffer_size) as usize;
+    let mut read_buffer = BufReader::with_capacity(read_buffer_size, file);
     let mut hasher = Params::new().to_state();
 
     loop {
-        let part = buf.fill_buf().unwrap();
+        let part = read_buffer.fill_buf().unwrap();
         // If the part is empty then we have reached EOF
         if part.is_empty() {
             break;
@@ -130,7 +129,7 @@ pub fn get_blake2s(path: &Path) -> String {
         hasher.update(part);
         let part_len = part.len();
         // Buffer consuming the data moves us forward in the file
-        buf.consume(part_len);
+        read_buffer.consume(part_len);
     }
     let result = hasher.finalize().to_hex();
     let blake2_hash = result.to_ascii_uppercase();

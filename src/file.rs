@@ -30,69 +30,117 @@ use {std::os::unix::fs::MetadataExt, std::os::unix::fs::PermissionsExt};
 use crate::scan_settings::FileScanSetting;
 
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileScanResult {
     pub(crate) scantime: String,
     pub(crate) path: Box<PathBuf>,
     pub(crate) is_dir: bool,
     pub(crate) is_file: bool,
-    pub(crate) is_sym: bool,
+    pub(crate) is_symbolic_link: bool,
     pub(crate) is_readonly: bool,
     pub(crate) exists: bool,
     pub(crate) md5: String,
     pub(crate) sha256: String,
     pub(crate) blake2s: String,
-    pub(crate) ctime: String,
-    pub(crate) mtime: String,
-    pub(crate) atime: String,
+    pub(crate) creation_time: String,
+    pub(crate) modified_time: String,
+    pub(crate) access_time: String,
     pub(crate) size: u64,
-    pub(crate) attrs: u32,
+    pub(crate) attributes: u32,
     pub(crate) contents: String,
     pub(crate) is_modified: bool,
     pub(crate) content_diff: String,
     pub(crate) content_diff_readable: String,
     #[cfg(windows)]
-    pub(crate) dacl: WinAcl,
+    pub(crate) discretionary_acl: WinAcl,
     #[cfg(windows)]
-    pub(crate) sacl: WinAcl,
+    pub(crate) system_acl: WinAcl,
 }
 
-fn store_json(results: &Vec<FileScanResult>) {
-    let results_path = format!(
-        "./scans/results-{}.json",
-        DateTime::<Utc>::from(SystemTime::now()).timestamp()
-    );
-    let scans_dir = Path::new(&results_path).parent().unwrap();
-    if !scans_dir.exists() {
-        match fs::create_dir_all(scans_dir) {
-            Ok(_) => {
-                info!("Created ./scans/ directory")
-            }
-            Err(e) => {
-                error!("Cannot create results directory: {}", e)
-            }
-        };
+impl FileScanResult {
+    fn default_time() -> String {
+        DateTime::<Utc>::default().to_string()
     }
 
-    let json_file = File::create(&results_path).unwrap();
-    let file_writer = BufWriter::new(json_file);
-    let storage_result = serde_json::to_writer_pretty(file_writer, &results);
-    match storage_result {
-        Ok(_) => {
-            info!("Results saved to file {}", &results_path)
-        }
-        Err(e) => {
-            error!("Error writing JSON: {}", e)
+    fn default_path() -> Box<PathBuf> {
+        Box::new(PathBuf::from(Path::new("")))
+    }
+    #[cfg(windows)]
+    fn default_acl() -> WinAcl {
+        WinAcl {
+            object_type: "".to_string(),
+            acl_entries: vec![],
         }
     }
 }
 
-pub fn find_latest_result_file() -> Box<PathBuf> {
-    let result_matches = glob("./scans/*").unwrap();
+#[cfg(windows)]
+impl Default for FileScanResult {
+    fn default() -> Self {
+        Self {
+            scantime: Self::default_time(),
+            path: Self::default_path(),
+            is_dir: false,
+            is_file: false,
+            is_symbolic_link: false,
+            is_readonly: false,
+            exists: false,
+            md5: "".to_string(),
+            sha256: "".to_string(),
+            blake2s: "".to_string(),
+            creation_time: Self::default_time(),
+            modified_time: Self::default_time(),
+            access_time: Self::default_time(),
+            size: 0,
+            attributes: 0,
+            contents: "".to_string(),
+            is_modified: false,
+            content_diff: "".to_string(),
+            content_diff_readable: "".to_string(),
+            discretionary_acl: Self::default_acl(),
+            system_acl: Self::default_acl(),
+        }
+    }
+}
+#[cfg(target_os = "linux")]
+impl Default for FileScanResult {
+    fn default() -> Self {
+        Self {
+            scantime: Self::default_time(),
+            path: Self::default_path(),
+            is_dir: false,
+            is_file: false,
+            is_symbolic_link: false,
+            is_readonly: false,
+            exists: false,
+            md5: "".to_string(),
+            sha256: "".to_string(),
+            blake2s: "".to_string(),
+            creation_time: Self::default_time(),
+            modified_time: Self::default_time(),
+            access_time: Self::default_time(),
+            size: 0,
+            attributes: 0,
+            contents: "".to_string(),
+            is_modified: false,
+            content_diff: "".to_string(),
+            content_diff_readable: "".to_string(),
+        }
+    }
+}
+
+impl FileScanResult {
+    #[allow(unused)]
+    pub(crate) fn set_path<T: AsRef<Path>>(&mut self, new_path: T) {
+        self.path = Box::new(PathBuf::from(new_path.as_ref()))
+    }
+}
+
+pub fn find_newest_file(saved_scans_dir: &str) -> Box<PathBuf> {
     let mut newest_path = PathBuf::new();
-    let mut newest_timestamp = DateTime::<Utc>::from_timestamp(0 as i64, 0 as u32);
+    let mut newest_timestamp = DateTime::<Utc>::from_timestamp(0i64, 0u32);
 
-    for mut result_match in result_matches {
+    for mut result_match in glob(saved_scans_dir).unwrap() {
         if !result_match.as_mut().unwrap().exists() {
             continue;
         }
@@ -101,16 +149,17 @@ pub fn find_latest_result_file() -> Box<PathBuf> {
         }
 
         #[cfg(windows)]
-        let this_match_time = DateTime::from_timestamp(
+        let win_time_raw =
             FileTime::from_creation_time(&result_match.as_mut().unwrap().metadata().unwrap())
-                .unwrap()
-                .unix_seconds(),
-            FileTime::from_creation_time(&result_match.as_mut().unwrap().metadata().unwrap())
-                .unwrap()
-                .nanoseconds(),
-        );
+                .unwrap();
+        #[cfg(windows)]
+        let this_match_time =
+            DateTime::from_timestamp(win_time_raw.unix_seconds(), win_time_raw.nanoseconds());
         #[cfg(target_os = "linux")]
-        let new_time = DateTime::from_timestamp(md.ctime(), 0);
+        let this_match_time = DateTime::from_timestamp(
+            result_match.as_mut().unwrap().metadata().unwrap().ctime(),
+            0,
+        );
 
         if this_match_time > newest_timestamp {
             newest_timestamp = this_match_time;
@@ -121,15 +170,15 @@ pub fn find_latest_result_file() -> Box<PathBuf> {
     Box::new(newest_path)
 }
 
-fn get_latest_results(_osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
-    let results_path = find_latest_result_file();
+pub fn get_latest_results(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
+    let modified_scan_result_path = format!("{}/*.json", osfig_settings.scan_result_path.as_str());
+    let results_path = find_newest_file(modified_scan_result_path.as_str());
     if !results_path.exists() & !results_path.is_file() {
         return Vec::new();
     }
 
     // Attempt to load latest results from json
-    let mut results_file =
-        File::open(find_latest_result_file().to_str().unwrap()).expect("Cannot open file");
+    let mut results_file = File::open(results_path.to_str().unwrap()).expect("Cannot open file");
 
     let mut data: String = "".to_string();
     match results_file.read_to_string(&mut data) {
@@ -243,16 +292,6 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
         }
     }
 
-    // I'm torn on this and may change it later. If the results are 0 it just saved "[]" into the
-    // json. Currently we're skipping the save operation and putting a message in the log. For
-    // integrity purposes, it may be valuable to store the empty json result instead. Will need to
-    // reconsider this later.
-    if results.len() == 0 {
-        warn!("Found no file results. Validate scan settings, access/permissions, and errors in the log");
-    }
-    if results.len() > 0 {
-        store_json(&results);
-    }
     results
 }
 
@@ -276,49 +315,22 @@ pub fn scan_file(
     // this time, it's likely to be an ephemeral file and not one we would have wanted results
     // about anyway.
     if !path_result.exists() {
-        let filescanresult: FileScanResult = FileScanResult {
-            scantime: DateTime::<Utc>::from(SystemTime::now()).to_string(),
-            path: Box::new(PathBuf::from(path)),
-            is_dir: false,
-            is_file: false,
-            is_sym: false,
-            is_readonly: false,
-            exists: false,
-            md5: "".to_string(),
-            sha256: "".to_string(),
-            blake2s: "".to_string(),
-            ctime: DateTime::<Utc>::default().to_string(),
-            mtime: DateTime::<Utc>::default().to_string(),
-            atime: DateTime::<Utc>::default().to_string(),
-            size: 0,
-            attrs: 0,
-            contents: "".to_string(),
-            is_modified: false,
-            content_diff: "".to_string(),
-            content_diff_readable: "".to_string(),
-            #[cfg(windows)]
-            dacl: WinAcl {
-                object_type: "".to_string(),
-                acl_entries: vec![],
-            },
-            #[cfg(windows)]
-            sacl: WinAcl {
-                object_type: "".to_string(),
-                acl_entries: vec![],
-            },
-        };
+        let mut filescanresult: FileScanResult = FileScanResult::default();
+        filescanresult.set_path(path);
 
         return filescanresult;
     }
 
     // At this point, we have a living result for a path. Collect the associated data.
     debug!("File path confirmed: Collecting hashes");
-    let hashes = hashing::get_all_hashes(&settings.file_hashes, path);
+    let hashes =
+        hashing::get_all_hashes(&settings.file_hashes, settings.file_read_buffer_size, path);
 
     debug!("Collecting metadata");
     let md = fs::metadata(path).unwrap();
 
     debug!("Collecting timestamps");
+    #[cfg(windows)]
     let file_time = FileTime::from_creation_time(&md);
     #[cfg(windows)]
     let created_time = DateTime::from_timestamp(
@@ -331,8 +343,8 @@ pub fn scan_file(
     let file_time = FileTime::from_last_modification_time(&md);
     let mod_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
 
-    // Todo research how to avoid update atime when reading file in Windows
-    trace!("atime not yet implemented");
+    // Todo research how to avoid update access_time when reading file in Windows
+    trace!("access_time not yet implemented");
     // let file_time = FileTime::from_last_access_time(&md);
     // let acc_time = DateTime::from_timestamp(file_time.unix_seconds(), file_time.nanoseconds());
 
@@ -401,31 +413,31 @@ pub fn scan_file(
         path: Box::new(path.to_path_buf()),
         is_dir: md.is_dir(),
         is_file: md.is_file(),
-        is_sym: md.is_symlink(),
+        is_symbolic_link: md.is_symlink(),
         is_readonly: md.permissions().readonly(),
         exists: md.is_file() || md.is_dir(),
         md5: hashes.md5.to_owned(),
         sha256: hashes.sha256.to_owned(),
         blake2s: hashes.blake2s.to_owned(),
-        ctime: created_time.unwrap().to_string(),
-        mtime: mod_time.unwrap().to_string(),
-        atime: DateTime::<Utc>::default().to_string(),
+        creation_time: created_time.unwrap().to_string(),
+        modified_time: mod_time.unwrap().to_string(),
+        access_time: DateTime::<Utc>::default().to_string(),
         #[cfg(windows)]
         size: md.file_size(),
         #[cfg(target_os = "linux")]
         size: md.size(),
         #[cfg(windows)]
-        attrs: md.file_attributes(),
+        attributes: md.file_attributes(),
         #[cfg(target_os = "linux")]
-        attrs: md.permissions().mode(),
+        attributes: md.permissions().mode(),
         contents: utf8_contents,
         is_modified: false,
         content_diff: "".to_string(),
         content_diff_readable: "".to_string(),
         #[cfg(windows)]
-        dacl: dacl_result,
+        discretionary_acl: dacl_result,
         #[cfg(windows)]
-        sacl: sacl_result,
+        system_acl: sacl_result,
     };
 
     // Check if the file was modified and update flag
@@ -466,7 +478,7 @@ pub fn scan_file(
     filescanresult
 }
 
-fn get_content_diff(
+pub fn get_content_diff(
     new_scan: &FileScanResult,
     old_scan_results: &Vec<FileScanResult>,
 ) -> (String, String) {
@@ -510,7 +522,7 @@ fn get_content_diff(
     return ("".to_string(), "".to_string());
 }
 
-fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResult) -> bool {
+pub fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResult) -> bool {
     for scan_entry in last_scan {
         if &scan_entry.path != &this_scan.path {
             continue;
@@ -538,7 +550,7 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
 
         debug!("File hashes do not differ: Checking metadata");
         // Hash data is not available for comparison. Check other parameters
-        if !&scan_entry.attrs.eq(&this_scan.attrs) {
+        if !&scan_entry.attributes.eq(&this_scan.attributes) {
             return true;
         }
         // Compare sizes
@@ -554,25 +566,27 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
         // It's important to fail here before getting to ACLs since ultimately, ACLs in Windows
         // are a slower comparison. Given a lot of file ACLs are based on inheritance, doing any
         // symlink is likely to corrupt our permissions.
-        if !&scan_entry.is_sym.eq(&this_scan.is_sym) {
+        if !&scan_entry.is_symbolic_link.eq(&this_scan.is_symbolic_link) {
             return true;
         }
         // T
-        if !&scan_entry.mtime.eq(&this_scan.mtime) {
+        if !&scan_entry.modified_time.eq(&this_scan.modified_time) {
             return true;
         }
         // T
-        if !&scan_entry.ctime.eq(&this_scan.ctime) {
+        if !&scan_entry.creation_time.eq(&this_scan.creation_time) {
             return true;
         }
 
         // Validate DACLs match
-        if check_acl_modified(&scan_entry.dacl, &this_scan.dacl) {
+        #[cfg(windows)]
+        if check_acl_modified(&scan_entry.discretionary_acl, &this_scan.discretionary_acl) {
             return true;
         }
 
         // Validate SACLs match
-        if check_acl_modified(&scan_entry.sacl, &this_scan.sacl) {
+        #[cfg(windows)]
+        if check_acl_modified(&scan_entry.system_acl, &this_scan.system_acl) {
             return true;
         }
     }
@@ -581,7 +595,8 @@ fn check_file_modified(last_scan: &Vec<FileScanResult>, this_scan: &FileScanResu
     return false;
 }
 
-fn check_acl_modified(old_acl: &WinAcl, new_acl: &WinAcl) -> bool {
+#[cfg(windows)]
+pub fn check_acl_modified(old_acl: &WinAcl, new_acl: &WinAcl) -> bool {
     if old_acl.object_type == new_acl.object_type {
         // Check counts of acl entries
         if !old_acl.acl_entries.len().eq(&new_acl.acl_entries.len()) {

@@ -1,6 +1,6 @@
 [package]
 name = "osfig"
-version = "0.4.0"
+version = "0.5.0"
 description = "Open Source Forensic Integrity Guard - A simple tool for use in establishing better forensic security controls."
 homepage = "https://github.com/Sahayak-DB/osfig"
 repository = "https://github.com/Sahayak-DB/osfig"
@@ -37,3 +37,6 @@ windows-permissions = "0.2.4"
 windows-acl = "0.3.0"
 winreg = "0.51.0"
 is_elevated = "0.1.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+users = "0.11.0"

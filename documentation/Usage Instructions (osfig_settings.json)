@@ -12,6 +12,13 @@ Common mistakes include:
 * Saving the file in an encoding other than UTF-8
 * Saving the file with a Byte Order Mark (BOM)
 
+### scan_result_path
+This setting dictates the file system path where results files will be saved.
+* Allowed values: Any glob compliant path terminating in a directory name.
+* Formatting: Must be glob compliant and should result in matching a single directory location, ending in a path delimeter.
+* Example: "./scans/" but not "./scans" and not "./scans/*"
+
+
 ### scan_files
 This setting enables or disables scanning of files. All file scanning settings depend upon this being set to true.
 * Allowed values: true, false,
@@ -65,6 +72,12 @@ This setting enables or disables collection of file contents. OSFIG only support
 * Allowed values: true, false,
 * Formatting: Must be a lowercase true/false not surrounded by quotes.
 * Example: true,
+
+### file_read_buffer_size
+This setting controls the size (in bytes) of chunks that will be read from a file at a time. Changing this may improve or worsen performance. This setting controls the memory used during file hashing. Performance will be optimal if the read buffer is in multiple of your storage drive sector size (commonly 4k or 16k) 
+* Allowed values: Integer values from 1 to 4,294,967,296 (1 byte to 4 gigabytes)
+* Formatting: Must be whole integer values with no commas
+* Example: 4096, 16384
 
 ### file_scan_delay
 This value represents a number of milliseconds (1000ms equals 1 second) to pause between scanning files. By slowing down scanning, it reduces the CPU and Disk utilization of OSFIG. Suggested values are below based upon the desired system impact--smaller numbers use more resources but scan faster and bigger numbers use fewer resources, but scanning takes longer. This has no change to memory utilization.
