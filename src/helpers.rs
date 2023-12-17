@@ -13,14 +13,20 @@ pub fn get_cur_sid() -> Vec<BYTE> {
     cur_sid.unwrap()
 }
 
+#[cfg(target_os = "linux")]
+use users;
+
 #[allow(unused)]
 pub fn get_cur_username() -> String {
     #[cfg(windows)]
     return windows_acl::helper::current_user().unwrap();
 
     #[cfg(target_os = "linux")]
-    // Todo implement current username in Linux
-    return "".to_string();
+    return users::get_effective_username()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
 }
 
 #[allow(unused)]

@@ -66,7 +66,6 @@ pub fn get_md5(path: &Path) -> String {
     let file = File::open(path).expect("Cannot open file");
     let len = file.metadata().unwrap().len();
 
-    // Todo Need more testing on buffer size for reading large files. 4k seems to perform adequately
     // This buffer size will directly correlate to RAM usage. OSFIG is currently single threaded,
     // but need to keep this in mind for the distant future.
     let buf_len = len.min(4_000) as usize;
@@ -113,7 +112,6 @@ pub fn get_blake2s(path: &Path) -> String {
     let file = File::open(path).expect("Cannot open file");
     let len = file.metadata().unwrap().len();
 
-    // Todo Need more testing on buffer size for reading large files. 4k seems to perform adequately
     // This buffer size will directly correlate to RAM usage. OSFIG is currently single threaded,
     // but need to keep this in mind for the distant future.
     let buf_len = len.min(4_000) as usize;
