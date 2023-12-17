@@ -24,7 +24,7 @@ pub fn get_cur_sid() -> Vec<BYTE> {
 
 use crate::file::FileScanResult;
 use crate::osfig_state::OsfigSettings;
-use crate::registry::{RegistryResult, RegistryResults};
+use crate::registry::RegistryResult;
 #[cfg(target_os = "linux")]
 use users;
 
@@ -57,14 +57,14 @@ pub fn sid_to_username(sid: &String) -> (String, String) {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanResults {
     pub files: Vec<FileScanResult>,
-    pub registry: RegistryResults,
+    pub registry: Vec<RegistryResult>,
 }
 
 impl Default for ScanResults {
     fn default() -> Self {
         Self {
             files: vec![],
-            registry: RegistryResults { results: vec![] },
+            registry: vec![],
         }
     }
 }
@@ -80,15 +80,15 @@ impl ScanResults {
     }
 
     pub fn add_registry(&mut self, registry: RegistryResult) {
-        self.registry.results.push(registry)
+        self.registry.push(registry)
     }
-    pub fn replace_registries(&mut self, registries: RegistryResults) {
+    pub fn replace_registries(&mut self, registries: Vec<RegistryResult>) {
         self.registry = registries
     }
 
-    pub fn add_registries(&mut self, registries: RegistryResults) {
-        for registry in registries.results {
-            self.registry.results.push(registry)
+    pub fn add_registries(&mut self, registries: Vec<RegistryResult>) {
+        for registry in registries {
+            self.registry.push(registry)
         }
     }
 }
@@ -99,7 +99,7 @@ pub fn save_results_to_file(results: ScanResults, osfig_settings: &OsfigSettings
     // integrity purposes, it may be valuable to store the empty json result instead. Will need to
     // reconsider this later.
 
-    if results.files.len() == 0 && results.registry.results.len() == 0 {
+    if results.files.len() == 0 && results.registry.len() == 0 {
         warn!("Found no results to save. Validate scan settings, access/permissions, and errors in the log");
         return;
     }

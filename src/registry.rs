@@ -8,29 +8,6 @@ use winreg::enums::{
 use winreg::{RegKey, HKEY};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegistryResults {
-    pub results: Vec<RegistryResult>,
-}
-
-impl RegistryResults {
-    pub fn add_result(&mut self, new_result: RegistryResult) {
-        let match_index = self.find_result(&new_result.path);
-        match match_index {
-            Some(match_index) => self.update_result(match_index, new_result),
-            None => self.results.push(new_result),
-        }
-    }
-    fn find_result(&self, path: &str) -> Option<usize> {
-        self.results.iter().position(|result| result.path == path)
-    }
-    fn update_result(&mut self, index: usize, new_result: RegistryResult) {
-        let mut existing_result = self.results.remove(index);
-        existing_result.add_data(new_result.data);
-        self.results.push(existing_result);
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryResult {
     path: String,
     data: RegistryData,
@@ -203,8 +180,8 @@ pub fn scan_reg_key(full_registry_path: &String) -> RegistryResult {
 }
 
 #[cfg(windows)]
-pub fn scan_reg_keys(path_list: &Vec<String>) -> RegistryResults {
-    let mut registry_results = RegistryResults { results: vec![] };
+pub fn scan_reg_keys(path_list: &Vec<String>) -> Vec<RegistryResult> {
+    let mut registry_results = vec![];
 
     for path in path_list {
         let mut registry_result = RegistryResult {
@@ -215,8 +192,33 @@ pub fn scan_reg_keys(path_list: &Vec<String>) -> RegistryResults {
             },
         };
 
-        registry_results.add_result(scan_reg_key(path));
+        registry_results = add_registry_result(registry_results, scan_reg_key(path));
     }
 
     registry_results
+}
+
+pub fn add_registry_result(
+    mut results: Vec<RegistryResult>,
+    new_result: RegistryResult,
+) -> Vec<RegistryResult> {
+    let match_index = find_registry_result(&results, &new_result.path);
+    match match_index {
+        Some(match_index) => results = update_registry_result(results, match_index, new_result),
+        None => results.push(new_result),
+    }
+    results
+}
+fn find_registry_result(results: &Vec<RegistryResult>, path: &str) -> Option<usize> {
+    results.iter().position(|result| result.path == path)
+}
+fn update_registry_result(
+    mut results: Vec<RegistryResult>,
+    index: usize,
+    new_result: RegistryResult,
+) -> Vec<RegistryResult> {
+    let mut existing_result = results.remove(index);
+    existing_result.add_data(new_result.data);
+    results.push(existing_result);
+    results
 }
