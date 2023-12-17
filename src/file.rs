@@ -74,6 +74,7 @@ impl FileScanResult {
     }
 }
 
+#[cfg(windows)]
 impl Default for FileScanResult {
     fn default() -> Self {
         Self {
@@ -174,6 +175,7 @@ pub fn find_newest_file(saved_scans_dir: &str) -> Box<PathBuf> {
         let win_time_raw =
             FileTime::from_creation_time(&result_match.as_mut().unwrap().metadata().unwrap())
                 .unwrap();
+        #[cfg(windows)]
         let this_match_time =
             DateTime::from_timestamp(win_time_raw.unix_seconds(), win_time_raw.nanoseconds());
         #[cfg(target_os = "linux")]
