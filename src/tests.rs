@@ -217,9 +217,6 @@ mod file_tests {
             expected_value.type_id(),
             vec![FileScanResult::default()].type_id()
         );
-        // Todo check on linux again to see why this needed to be _eq to 1 but Win likes 0
-        // Was finding on Windows only testfile1 was being scanned and was included in Vec result
-        // Nope, found it... timing again on setup/teardown. Desktop is too fast. Need to refactor.
         assert_eq!(expected_value.len(), 1);
 
         let json_file = File::create("tests_result.json").unwrap();
