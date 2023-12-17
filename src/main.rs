@@ -57,7 +57,7 @@ fn main() -> std::io::Result<()> {
 
     Ok(())
 }
-
+// Todo Add registry value comparisons
 // Todo Store scans in local db for comparisons
 // Todo Set up a build pipeline that automatically addresses versioning
 // Todo Add commandline options

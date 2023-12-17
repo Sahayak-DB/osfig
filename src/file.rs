@@ -11,7 +11,7 @@ use serde_json;
 use serde_json::from_str;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{BufWriter, Read};
+use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::exit;

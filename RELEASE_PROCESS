@@ -1,3 +1,4 @@
+update CHANGELOG
 format code
 cargo test -- --test-threads=1
 cargo sbom > sbom.json

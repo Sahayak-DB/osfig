@@ -128,7 +128,7 @@ pub fn scan_reg_key(full_registry_path: &String) -> RegistryResult {
         }
     }
 
-    // Check that you never get value and final_subkey to both be populated
+    // Todo check that you never get value and final_subkey to both be populated
 
     // This is the majority of our path
     let final_path = reg_path.join("\\");
@@ -138,10 +138,8 @@ pub fn scan_reg_key(full_registry_path: &String) -> RegistryResult {
     if full_registry_path.contains("|") {
         // result_path = full_registry_path.split("|").collect()[0];
 
-        let result_path_a: Vec<&str> = full_registry_path.split("|").collect();
-        result_path = result_path_a.index(0).to_string();
-        let z = 1;
-        let f = 2;
+        let result_path_tmp: Vec<&str> = full_registry_path.split("|").collect();
+        result_path = result_path_tmp.index(0).to_string();
     } else {
         result_path = full_registry_path.clone();
     }
