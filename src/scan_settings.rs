@@ -9,7 +9,7 @@ pub struct FileHashes {
 }
 
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileScanSetting {
     pub(crate) file_patterns: Vec<String>,
     pub(crate) file_ignore_patterns: Vec<String>,
@@ -20,22 +20,8 @@ pub struct FileScanSetting {
     pub(crate) file_read_buffer_size: u64,
 }
 
-impl Clone for FileScanSetting {
-    fn clone(&self) -> Self {
-        FileScanSetting {
-            file_patterns: self.file_patterns.clone(),
-            file_ignore_patterns: self.file_ignore_patterns.clone(),
-            file_hashes: self.file_hashes.clone(),
-            file_dacl: self.file_dacl,
-            file_sacl: self.file_sacl,
-            file_content: self.file_content,
-            file_read_buffer_size: self.file_read_buffer_size,
-        }
-    }
-}
-
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanSettings {
     pub(crate) scan_files: bool,
     pub(crate) file_scan_settings: Vec<FileScanSetting>,

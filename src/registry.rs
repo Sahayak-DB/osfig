@@ -5,11 +5,11 @@ use winreg::enums::{
     HKEY_DYN_DATA, HKEY_LOCAL_MACHINE, HKEY_PERFORMANCE_DATA, HKEY_PERFORMANCE_NLSTEXT,
     HKEY_PERFORMANCE_TEXT, HKEY_USERS,
 };
-use winreg::{EnumKeys, EnumValues, RegKey, RegValue, HKEY};
+use winreg::{RegKey, HKEY};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryResults {
-    results: Vec<RegistryResult>,
+    pub results: Vec<RegistryResult>,
 }
 
 impl RegistryResults {
@@ -38,7 +38,7 @@ pub struct RegistryResult {
 
 impl RegistryResult {
     pub fn add_data(&mut self, new_data: RegistryData) {
-        self.data.add_all(new_data)
+        self.data.add_data(new_data)
     }
 }
 
@@ -109,7 +109,7 @@ pub fn get_registry_hkey(hkey_name: &str) -> Result<HKEY, String> {
 }
 
 #[cfg(windows)]
-pub fn scan_reg_key(full_registry_path: String) -> (String, RegistryData) {
+pub fn scan_reg_key(full_registry_path: &String) -> RegistryResult {
     // Todo add the flags on key opening so we only have read access
     let mut path_items: Vec<&str>;
     if full_registry_path.contains("\\") {
@@ -196,12 +196,14 @@ pub fn scan_reg_key(full_registry_path: String) -> (String, RegistryData) {
         value = reg_handle.get_value(target_value).unwrap();
         registry_data.add_value_from_pair(target_value.to_string(), value)
     }
-
-    (result_path.to_string(), registry_data)
+    RegistryResult {
+        path: result_path.to_string(),
+        data: registry_data,
+    }
 }
 
 #[cfg(windows)]
-pub fn scan_reg_keys(path_list: Vec<String>) {
+pub fn scan_reg_keys(path_list: &Vec<String>) -> RegistryResults {
     let mut registry_results = RegistryResults { results: vec![] };
 
     for path in path_list {
@@ -213,12 +215,8 @@ pub fn scan_reg_keys(path_list: Vec<String>) {
             },
         };
 
-        (registry_result.path, registry_result.data) = scan_reg_key(path);
-
-        registry_results.add_result(registry_result);
+        registry_results.add_result(scan_reg_key(path));
     }
 
-    println!("Done scanning registry");
-    println!("Returning");
-    println!("{:?}", registry_results);
+    registry_results
 }

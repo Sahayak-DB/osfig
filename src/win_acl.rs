@@ -11,7 +11,7 @@ use {
 };
 
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WinaclEntry {
     pub(crate) acl_type: String,
     pub(crate) acl_flags: String,
@@ -20,7 +20,7 @@ pub struct WinaclEntry {
     pub(crate) acl_mask: String,
 }
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WinAcl {
     pub(crate) object_type: String,
     pub(crate) acl_entries: Vec<WinaclEntry>,

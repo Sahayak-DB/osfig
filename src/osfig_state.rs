@@ -15,7 +15,7 @@ const DEFAULT_SCANS_SAVE_PATH: &'static str = "./scans";
 pub const DEFAULT_FILE_READ_BUFFER_SIZE: u64 = 4_096;
 
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OsfigSettings {
     pub(crate) scan_settings: ScanSettings,
     pub(crate) scan_result_path: String,

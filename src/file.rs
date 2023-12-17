@@ -30,7 +30,7 @@ use {std::os::unix::fs::MetadataExt, std::os::unix::fs::PermissionsExt};
 use crate::scan_settings::FileScanSetting;
 
 #[allow(unused)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileScanResult {
     pub(crate) scantime: String,
     pub(crate) path: Box<PathBuf>,
@@ -134,29 +134,6 @@ impl FileScanResult {
     pub(crate) fn set_path<T: AsRef<Path>>(&mut self, new_path: T) {
         self.path = Box::new(PathBuf::from(new_path.as_ref()))
     }
-}
-
-pub fn store_json(results: &Vec<FileScanResult>, path: &str) -> Result<(), std::io::Error> {
-    let scans_dir = Path::new(&path).parent().unwrap_or(Path::new("./scans/"));
-
-    if !scans_dir.exists() {
-        match fs::create_dir_all(scans_dir) {
-            Ok(_) => {
-                info!("Created directory: {:?}", scans_dir)
-            }
-            Err(e) => {
-                error!("Cannot create results directory: {}", e)
-            }
-        };
-    }
-
-    let json_file = File::create(&path)?;
-    let file_writer = BufWriter::new(json_file);
-    let save_result = match serde_json::to_writer_pretty(file_writer, &results) {
-        Ok(_) => {}
-        Err(_) => {}
-    };
-    Ok(save_result)
 }
 
 pub fn find_newest_file(saved_scans_dir: &str) -> Box<PathBuf> {
@@ -315,30 +292,6 @@ pub fn scan_files(osfig_settings: &OsfigSettings) -> Vec<FileScanResult> {
         }
     }
 
-    // I'm torn on this and may change it later. If the results are 0 it just saved "[]" into the
-    // json. Currently we're skipping the save operation and putting a message in the log. For
-    // integrity purposes, it may be valuable to store the empty json result instead. Will need to
-    // reconsider this later.
-    if results.len() == 0 {
-        warn!("Found no file results. Validate scan settings, access/permissions, and errors in the log");
-    }
-    if results.len() > 0 {
-        // Todo handle return value and check for errors
-        let save_path = format!(
-            "{}/results-{}.json",
-            osfig_settings.scan_result_path.as_str(),
-            DateTime::<Utc>::from(SystemTime::now()).timestamp()
-        );
-        let save_result = store_json(&results, &save_path);
-        match save_result {
-            Ok(_) => {
-                info!("Results saved to file {}", &save_path)
-            }
-            Err(e) => {
-                error!("Error writing JSON: {}", e)
-            }
-        }
-    }
     results
 }
 
